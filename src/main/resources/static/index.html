@@ -176,6 +176,41 @@
     background: white;
   }
 
+  .filters {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .filter-field label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .filter-field select {
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+  .filter-field.checkbox-field label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    text-transform: none;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0;
+    padding-bottom: 7px;
+  }
+  .filter-field.checkbox-field input {
+    width: auto;
+  }
+
   .row-actions { display: flex; gap: 6px; }
   .row-actions button { padding: 5px 10px; font-size: 12px; }
 
@@ -285,6 +320,30 @@
     <div class="panel-header">
       <h2>Existing tasks</h2>
       <button id="addTaskBtn">+ Add task</button>
+    </div>
+    <div class="filters">
+      <div class="filter-field">
+        <label>Priority</label>
+        <select id="filterPriority">
+          <option value="">All</option>
+          <option value="LOW">LOW</option>
+          <option value="MEDIUM">MEDIUM</option>
+          <option value="HIGH">HIGH</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label>Status</label>
+        <select id="filterStatus">
+          <option value="">All</option>
+          <option value="TODO">TODO</option>
+          <option value="IN_PROGRESS">IN_PROGRESS</option>
+          <option value="DONE">DONE</option>
+        </select>
+      </div>
+      <div class="filter-field checkbox-field">
+        <label><input type="checkbox" id="filterOverdue"> Overdue only</label>
+      </div>
+      <button class="secondary" id="filterClearBtn">Clear filters</button>
     </div>
     <table id="tasksTable">
       <thead>
@@ -460,13 +519,37 @@ function renderWorkers() {
   });
 }
 
+// ---------- Task filters ----------
+function getFilteredTasks() {
+  const priority = document.getElementById('filterPriority').value;
+  const status = document.getElementById('filterStatus').value;
+  const overdueOnly = document.getElementById('filterOverdue').checked;
+
+  return tasks.filter(t => {
+    if (priority && (t.priority || 'MEDIUM') !== priority) return false;
+    if (status && (t.status || 'TODO') !== status) return false;
+    if (overdueOnly && !isOverdue(t)) return false;
+    return true;
+  });
+}
+
 // ---------- Render tasks ----------
 function renderTasks() {
   const tbody = document.getElementById('tasksTbody');
   tbody.innerHTML = '';
-  document.getElementById('tasksEmpty').style.display = tasks.length ? 'none' : 'block';
+  const filtered = getFilteredTasks();
+  const emptyEl = document.getElementById('tasksEmpty');
+  if (!tasks.length) {
+    emptyEl.textContent = 'No tasks yet. Add the first one.';
+    emptyEl.style.display = 'block';
+  } else if (!filtered.length) {
+    emptyEl.textContent = 'No tasks match the selected filters.';
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+  }
 
-  tasks.forEach(t => {
+  filtered.forEach(t => {
     const workerName = t.worker ? (workers.find(w => w.id === t.worker.id)?.name || t.worker.name || ('#' + t.worker.id)) : '—';
     const status = t.status || 'TODO';
     const priority = t.priority || 'MEDIUM';
@@ -555,6 +638,17 @@ async function deleteWorker(id) {
     showError('Could not delete worker (' + e.message + ')');
   }
 }
+
+// ---------- Task filters ----------
+document.getElementById('filterPriority').addEventListener('change', renderTasks);
+document.getElementById('filterStatus').addEventListener('change', renderTasks);
+document.getElementById('filterOverdue').addEventListener('change', renderTasks);
+document.getElementById('filterClearBtn').addEventListener('click', () => {
+  document.getElementById('filterPriority').value = '';
+  document.getElementById('filterStatus').value = '';
+  document.getElementById('filterOverdue').checked = false;
+  renderTasks();
+});
 
 // ---------- Task modal ----------
 document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal());
