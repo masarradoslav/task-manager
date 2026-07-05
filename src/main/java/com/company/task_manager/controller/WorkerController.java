@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collection;
 import java.util.Optional;
 
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1/workers")
 public class WorkerController {

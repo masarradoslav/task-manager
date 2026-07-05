@@ -1,15 +1,26 @@
-### Get all workers
-GET http://localhost:8080/api/v1/workers
-
-### Get worker by id
-GET http://localhost:8080/api/v1/workers/1
-
-### Create worker
+### Vytvor workera
 POST http://localhost:8080/api/v1/workers
 Content-Type: application/json
 
-{"name": "Ján Novák"}
+{"name": "Peter Horák"}
 
-### Delete worker
-DELETE http://localhost:8080/api/v1/workers/1
+### Vytvor druhého workera
+POST http://localhost:8080/api/v1/workers
+Content-Type: application/json
 
+{"name": "Jana Malá"}
+
+### Vytvor task priradený prvému workerovi
+POST http://localhost:8080/api/v1/tasks
+Content-Type: application/json
+
+{"name": "Naprogramovať API", "worker": {"id": 1}, "priority": "HIGH"}
+
+### Zmeň task na druhého workera
+PUT http://localhost:8080/api/v1/tasks/1
+Content-Type: application/json
+
+{"name": "Naprogramovať API", "worker": {"id": 2}}
+
+### Over zmenu
+GET http://localhost:8080/api/v1/tasks/1

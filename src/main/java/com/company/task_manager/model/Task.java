@@ -1,9 +1,6 @@
 package com.company.task_manager.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 
 import java.util.Objects;
 
@@ -16,6 +13,12 @@ public class Task {
 
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    private TaskStatus status;
+
+    @Enumerated(EnumType.STRING)
+    private TaskPriority priority;
+
     // Toto je "vlastník" vzťahu - v tabuľke task bude stĺpec worker_id
     @ManyToOne
     private Worker worker;
@@ -26,6 +29,8 @@ public class Task {
 
     public Task(String name) {
         this.name = name;
+        this.status = TaskStatus.TODO;
+        this.priority = TaskPriority.MEDIUM;
     }
 
     public Task(Worker worker, String name) {
@@ -51,6 +56,22 @@ public class Task {
 
     public void setWorker(Worker worker) {
         this.worker = worker;
+    }
+
+    public TaskStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(TaskStatus status) {
+        this.status = status;
+    }
+
+    public TaskPriority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(TaskPriority priority) {
+        this.priority = priority;
     }
 
     @Override
