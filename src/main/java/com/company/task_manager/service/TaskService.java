@@ -6,6 +6,7 @@ import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -33,6 +34,7 @@ public class TaskService {
     }
 
     public Task createTask(Task task){
+        validateDueDate(task.getDueDate());
         return taskRepository.save(task);
     }
 
@@ -64,6 +66,17 @@ public class TaskService {
             existingTask.setPriority(updatedData.getPriority());
         }
 
+        if (updatedData.getDueDate() != null) {
+            validateDueDate(updatedData.getDueDate());
+            existingTask.setDueDate(updatedData.getDueDate());
+        }
+
         return taskRepository.save(existingTask); // ktorý objekt ukladáš?
+    }
+
+    private void validateDueDate(LocalDateTime dueDate) {
+        if (dueDate != null && !dueDate.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Due date must be in the future");
+        }
     }
 }

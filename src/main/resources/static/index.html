@@ -156,6 +156,18 @@
   .priority-MEDIUM { background: var(--priority-medium); }
   .priority-HIGH { background: var(--priority-high); }
 
+  .overdue-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    background: var(--danger);
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+
   select {
     font-size: 12px;
     padding: 4px 6px;
@@ -276,7 +288,7 @@
     </div>
     <table id="tasksTable">
       <thead>
-        <tr><th>ID</th><th>Name</th><th>Status</th><th>Priority</th><th>Worker</th><th></th></tr>
+        <tr><th>ID</th><th>Name</th><th>Status</th><th>Priority</th><th>Due date</th><th>Worker</th><th></th></tr>
       </thead>
       <tbody id="tasksTbody"></tbody>
     </table>
@@ -322,6 +334,10 @@
         <option value="MEDIUM">MEDIUM</option>
         <option value="HIGH">HIGH</option>
       </select>
+    </div>
+    <div class="field">
+      <label>Due date</label>
+      <input type="datetime-local" id="taskDueDateInput">
     </div>
     <div class="field">
       <label>Assigned worker</label>
@@ -375,7 +391,7 @@ async function apiPost(path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error('POST ' + path + ' failed (' + res.status + ')');
+  if (!res.ok) throw new Error(await errorMessage(res, 'POST ' + path));
   return res.status === 204 ? null : res.json();
 }
 async function apiPut(path, body) {
@@ -384,8 +400,12 @@ async function apiPut(path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error('PUT ' + path + ' failed (' + res.status + ')');
+  if (!res.ok) throw new Error(await errorMessage(res, 'PUT ' + path));
   return res.status === 204 ? null : res.json();
+}
+async function errorMessage(res, label) {
+  const text = await res.text().catch(() => '');
+  return text || (label + ' failed (' + res.status + ')');
 }
 async function apiDelete(path) {
   const res = await fetch(API_BASE + path, { method: 'DELETE' });
@@ -450,12 +470,15 @@ function renderTasks() {
     const workerName = t.worker ? (workers.find(w => w.id === t.worker.id)?.name || t.worker.name || ('#' + t.worker.id)) : '—';
     const status = t.status || 'TODO';
     const priority = t.priority || 'MEDIUM';
+    const overdue = isOverdue(t);
+    const dueDateText = t.dueDate ? new Date(t.dueDate).toLocaleString() : '—';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${t.id}</td>
       <td>${escapeHtml(t.name)}</td>
       <td><span class="status-badge status-${status}">${status}</span></td>
       <td><span class="priority-badge priority-${priority}">${priority}</span></td>
+      <td>${escapeHtml(dueDateText)}${overdue ? ' <span class="overdue-badge">OVERDUE</span>' : ''}</td>
       <td>${escapeHtml(workerName)}</td>
       <td class="row-actions">
         <button class="secondary" onclick="openEditTask(${t.id})">Edit</button>
@@ -463,6 +486,10 @@ function renderTasks() {
       </td>`;
     tbody.appendChild(tr);
   });
+}
+
+function isOverdue(t) {
+  return !!t.dueDate && t.status !== 'DONE' && new Date(t.dueDate).getTime() < Date.now();
 }
 
 function renderTaskWorkerOptions() {
@@ -533,12 +560,20 @@ async function deleteWorker(id) {
 document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal());
 document.getElementById('taskCancelBtn').addEventListener('click', () => closeTaskModal());
 
+function localDateTimeInputValue(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+    + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+}
 function openTaskModal() {
   editingTaskId = null;
   document.getElementById('taskModalTitle').textContent = 'Add task';
   document.getElementById('taskNameInput').value = '';
   document.getElementById('taskStatusInput').value = 'TODO';
   document.getElementById('taskPriorityInput').value = 'MEDIUM';
+  const dueDateInput = document.getElementById('taskDueDateInput');
+  dueDateInput.value = '';
+  dueDateInput.min = localDateTimeInputValue(new Date());
   document.getElementById('taskWorkerInput').value = '';
   document.getElementById('taskModal').classList.add('active');
 }
@@ -550,6 +585,9 @@ function openEditTask(id) {
   document.getElementById('taskNameInput').value = t.name;
   document.getElementById('taskStatusInput').value = t.status || 'TODO';
   document.getElementById('taskPriorityInput').value = t.priority || 'MEDIUM';
+  const dueDateInput = document.getElementById('taskDueDateInput');
+  dueDateInput.value = t.dueDate ? t.dueDate.slice(0, 16) : '';
+  dueDateInput.min = localDateTimeInputValue(new Date());
   document.getElementById('taskWorkerInput').value = t.worker ? t.worker.id : '';
   document.getElementById('taskModal').classList.add('active');
 }
@@ -560,13 +598,20 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('taskNameInput').value.trim();
   const status = document.getElementById('taskStatusInput').value;
   const priority = document.getElementById('taskPriorityInput').value;
+  const dueDate = document.getElementById('taskDueDateInput').value;
   const workerId = document.getElementById('taskWorkerInput').value;
   if (!name) return;
 
+  clearError();
+  if (dueDate && new Date(dueDate).getTime() <= Date.now()) {
+    showError('Due date must be in the future');
+    return;
+  }
+
   const body = { name, status, priority };
+  if (dueDate) body.dueDate = dueDate;
   if (workerId) body.worker = { id: Number(workerId) };
 
-  clearError();
   try {
     if (editingTaskId) {
       await apiPut('/tasks/' + editingTaskId, body);

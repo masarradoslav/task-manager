@@ -2,6 +2,7 @@ package com.company.task_manager.model;
 
 import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
@@ -18,6 +19,9 @@ public class Task {
 
     @Enumerated(EnumType.STRING)
     private TaskPriority priority;
+
+    // Lokálny dátum/čas bez časovej zóny - termín splnenia úlohy
+    private LocalDateTime dueDate;
 
     // Toto je "vlastník" vzťahu - v tabuľke task bude stĺpec worker_id
     @ManyToOne
@@ -72,6 +76,14 @@ public class Task {
 
     public void setPriority(TaskPriority priority) {
         this.priority = priority;
+    }
+
+    public LocalDateTime getDueDate() {
+        return dueDate;
+    }
+
+    public void setDueDate(LocalDateTime dueDate) {
+        this.dueDate = dueDate;
     }
 
     @Override
