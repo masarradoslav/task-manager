@@ -116,6 +116,9 @@
   button.danger { background: var(--danger); }
   button.danger:hover { background: #832727; }
 
+  .table-scroll {
+    overflow-x: auto;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -259,7 +262,13 @@
     font-size: 12px;
   }
 
-  .row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+  .row-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
   .row-actions button {
     padding: 5px 10px;
     font-size: 12px;
@@ -470,12 +479,14 @@
       </div>
       <button class="secondary" id="filterWorkerClearBtn">Clear filters</button>
     </div>
-    <table id="workersTable">
-      <thead>
-        <tr><th>ID</th><th>Name</th><th>Department</th><th>Type</th><th>Tasks</th><th></th></tr>
-      </thead>
-      <tbody id="workersTbody"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table id="workersTable">
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Department</th><th>Type</th><th>Tasks</th><th></th></tr>
+        </thead>
+        <tbody id="workersTbody"></tbody>
+      </table>
+    </div>
     <div class="empty" id="workersEmpty" style="display:none;">No workers yet. Add the first one.</div>
     <div class="pagination">
       <button class="secondary" id="workerPrevBtn">Prev</button>
@@ -524,12 +535,14 @@
       </div>
       <button class="secondary" id="filterClearBtn">Clear filters</button>
     </div>
-    <table id="tasksTable">
-      <thead>
-        <tr><th>ID</th><th>Name</th><th>Status</th><th>Priority</th><th>Department</th><th>Due date</th><th>Worker</th><th></th></tr>
-      </thead>
-      <tbody id="tasksTbody"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table id="tasksTable">
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Status</th><th>Priority</th><th>Department</th><th>Due date</th><th>Worker</th><th></th></tr>
+        </thead>
+        <tbody id="tasksTbody"></tbody>
+      </table>
+    </div>
     <div class="empty" id="tasksEmpty" style="display:none;">No tasks yet. Add the first one.</div>
     <div class="pagination">
       <button class="secondary" id="taskPrevBtn">Prev</button>
@@ -903,7 +916,7 @@ function renderWorkers() {
       <td>${escapeHtml(w.department || '—')}</td>
       <td>${escapeHtml(w.workerType || '—')}</td>
       <td><button class="secondary" onclick="viewWorkerTasks(${w.id})">View tasks</button></td>
-      <td class="row-actions">${renderWorkerActions(w)}</td>`;
+      <td><div class="row-actions">${renderWorkerActions(w)}</div></td>`;
     tbody.appendChild(tr);
   });
 
@@ -993,7 +1006,7 @@ function renderTasks() {
       <td>${escapeHtml(t.department || '—')}</td>
       <td>${escapeHtml(dueDateText)}${overdue ? ' <span class="overdue-badge">OVERDUE</span>' : ''}</td>
       <td>${escapeHtml(workerName)}</td>
-      <td class="row-actions">${renderTaskActions(t)}</td>`;
+      <td><div class="row-actions">${renderTaskActions(t)}</div></td>`;
     tbody.appendChild(tr);
   });
 
