@@ -33,7 +33,7 @@ public class WorkerController {
 
     @PostMapping
     public WorkerResponse createWorker(@Valid @RequestBody WorkerRequest request){
-        Worker saved = workerService.createWorker(new Worker(request.name()));
+        Worker saved = workerService.createWorker(new Worker(request.name()), request.taskIds());
         return WorkerResponse.from(saved);
     }
 

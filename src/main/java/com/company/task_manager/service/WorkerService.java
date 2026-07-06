@@ -1,18 +1,24 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ResourceNotFoundException;
+import com.company.task_manager.model.Task;
 import com.company.task_manager.model.Worker;
+import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.List;
 
 @Service
 public class WorkerService {
     private WorkerRepository workerRepository;
+    private TaskRepository taskRepository;
 
-    public WorkerService(WorkerRepository workerRepository) {
+    public WorkerService(WorkerRepository workerRepository, TaskRepository taskRepository) {
         this.workerRepository = workerRepository;
+        this.taskRepository = taskRepository;
     }
 
     public Collection<Worker> getAllWorkers(){
@@ -24,8 +30,20 @@ public class WorkerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
     }
 
-    public Worker createWorker(Worker worker){
-        return workerRepository.save(worker);
+    @Transactional
+    public Worker createWorker(Worker worker, List<Integer> taskIds){
+        Worker savedWorker = workerRepository.save(worker);
+
+        if (taskIds != null) {
+            for (Integer taskId : taskIds) {
+                Task task = taskRepository.findById(taskId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + taskId));
+                savedWorker.addTask(task);
+                taskRepository.save(task);
+            }
+        }
+
+        return savedWorker;
     }
 
     public void deleteWorker(int id){

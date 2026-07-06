@@ -360,8 +360,12 @@
   <div class="modal">
     <h3 id="workerModalTitle">Add worker</h3>
     <div class="field">
-      <label>Name</label>
+      <label>Name *</label>
       <input type="text" id="workerNameInput" placeholder="e.g. Ján Novák">
+    </div>
+    <div class="field" id="workerTasksField">
+      <label>Assign tasks (optional)</label>
+      <select id="workerTasksInput" multiple size="5"></select>
     </div>
     <div class="modal-actions">
       <button class="secondary" id="workerCancelBtn">Cancel</button>
@@ -375,11 +379,11 @@
   <div class="modal">
     <h3 id="taskModalTitle">Add task</h3>
     <div class="field">
-      <label>Name</label>
+      <label>Name *</label>
       <input type="text" id="taskNameInput" placeholder="e.g. Naprogramovať API">
     </div>
     <div class="field">
-      <label>Status</label>
+      <label>Status *</label>
       <select id="taskStatusInput">
         <option value="TODO">TODO</option>
         <option value="IN_PROGRESS">IN_PROGRESS</option>
@@ -387,7 +391,7 @@
       </select>
     </div>
     <div class="field">
-      <label>Priority</label>
+      <label>Priority *</label>
       <select id="taskPriorityInput">
         <option value="LOW">LOW</option>
         <option value="MEDIUM">MEDIUM</option>
@@ -395,7 +399,7 @@
       </select>
     </div>
     <div class="field">
-      <label>Due date</label>
+      <label>Due date *</label>
       <input type="datetime-local" id="taskDueDateInput">
     </div>
     <div class="field">
@@ -595,10 +599,22 @@ function escapeHtml(str) {
 document.getElementById('addWorkerBtn').addEventListener('click', () => openWorkerModal());
 document.getElementById('workerCancelBtn').addEventListener('click', () => closeWorkerModal());
 
+function renderWorkerTaskOptions() {
+  const select = document.getElementById('workerTasksInput');
+  select.innerHTML = '';
+  tasks.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.name;
+    select.appendChild(opt);
+  });
+}
 function openWorkerModal() {
   editingWorkerId = null;
   document.getElementById('workerModalTitle').textContent = 'Add worker';
   document.getElementById('workerNameInput').value = '';
+  renderWorkerTaskOptions();
+  document.getElementById('workerTasksField').style.display = '';
   document.getElementById('workerModal').classList.add('active');
 }
 function openEditWorker(id) {
@@ -607,6 +623,7 @@ function openEditWorker(id) {
   editingWorkerId = id;
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
+  document.getElementById('workerTasksField').style.display = 'none';
   document.getElementById('workerModal').classList.add('active');
 }
 function closeWorkerModal() {
@@ -614,13 +631,17 @@ function closeWorkerModal() {
 }
 document.getElementById('workerSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('workerNameInput').value.trim();
-  if (!name) return;
   clearError();
+  if (!name) {
+    showError('Name is required');
+    return;
+  }
   try {
     if (editingWorkerId) {
       await apiPut('/workers/' + editingWorkerId, { name });
     } else {
-      await apiPost('/workers', { name });
+      const taskIds = Array.from(document.getElementById('workerTasksInput').selectedOptions).map(o => Number(o.value));
+      await apiPost('/workers', { name, taskIds });
     }
     closeWorkerModal();
     await loadAll();
@@ -694,16 +715,30 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
   const priority = document.getElementById('taskPriorityInput').value;
   const dueDate = document.getElementById('taskDueDateInput').value;
   const workerId = document.getElementById('taskWorkerInput').value;
-  if (!name) return;
 
   clearError();
-  if (dueDate && new Date(dueDate).getTime() <= Date.now()) {
+  if (!name) {
+    showError('Name is required');
+    return;
+  }
+  if (!status) {
+    showError('Status is required');
+    return;
+  }
+  if (!priority) {
+    showError('Priority is required');
+    return;
+  }
+  if (!dueDate) {
+    showError('Due date is required');
+    return;
+  }
+  if (new Date(dueDate).getTime() <= Date.now()) {
     showError('Due date must be in the future');
     return;
   }
 
-  const body = { name, status, priority };
-  if (dueDate) body.dueDate = dueDate;
+  const body = { name, status, priority, dueDate };
   if (workerId) body.workerId = Number(workerId);
 
   try {
