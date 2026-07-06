@@ -3,6 +3,7 @@ package com.company.task_manager.model;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.Entity;
+import org.hibernate.annotations.DiscriminatorOptions;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
@@ -23,6 +24,14 @@ import java.util.Objects;
 @Entity
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "worker_type")
+// force = true zabráni Hibernate vygenerovať CHECK (worker_type IN (...)) constraint na
+// diskriminátorovom stĺpci. Ten IN-check má v H2 in-memory DB chybu: constraint si zapamätá
+// session, ktorá ho prvýkrát vyhodnotila (connection zo schema-generation), a keď HikariCP tú
+// connection neskôr uzavrie, každé ďalšie INSERT/UPDATE na worker padne s
+// "Check constraint invalid / The database has been closed [90098]". Diskriminátor píše len
+// Hibernate (nikdy nie user), takže o žiadnu ochranu neprichádzame; force=true namiesto toho
+// pridáva podmienku na worker_type priamo do SELECT-ov.
+@DiscriminatorOptions(force = true)
 public class Worker {
 
     @Id
