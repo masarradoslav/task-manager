@@ -1,14 +1,15 @@
 package com.company.task_manager.controller;
 
+import com.company.task_manager.dto.PageResponse;
 import com.company.task_manager.dto.WorkerRequest;
 import com.company.task_manager.dto.WorkerResponse;
+import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.service.WorkerService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Collection;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -21,8 +22,13 @@ public class WorkerController {
     }
 
     @GetMapping
-    public Collection<WorkerResponse> getAllWorkers(){
-        return workerService.getAllWorkers().stream().map(WorkerResponse::from).toList();
+    public PageResponse<WorkerResponse> getAllWorkers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Department department
+    ){
+        Page<Worker> result = workerService.getWorkers(page, size, department);
+        return PageResponse.from(result.map(WorkerResponse::from));
     }
 
 

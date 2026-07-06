@@ -211,6 +211,41 @@
     width: auto;
   }
 
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .pagination button {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+  .pagination button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .filter-note {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .filter-note.active { display: flex; }
+  .filter-note button {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
   .row-actions { display: flex; gap: 6px; }
   .row-actions button { padding: 5px 10px; font-size: 12px; }
 
@@ -370,6 +405,11 @@
       <tbody id="workersTbody"></tbody>
     </table>
     <div class="empty" id="workersEmpty" style="display:none;">No workers yet. Add the first one.</div>
+    <div class="pagination">
+      <button class="secondary" id="workerPrevBtn">Prev</button>
+      <span id="workerPageInfo"></span>
+      <button class="secondary" id="workerNextBtn">Next</button>
+    </div>
   </section>
 
   <!-- TASKS PANEL -->
@@ -378,6 +418,7 @@
       <h2>Existing tasks</h2>
       <button id="addTaskBtn">+ Add task</button>
     </div>
+    <div class="filter-note" id="taskWorkerFilterNote"></div>
     <div class="filters">
       <div class="filter-field">
         <label>Priority</label>
@@ -418,6 +459,11 @@
       <tbody id="tasksTbody"></tbody>
     </table>
     <div class="empty" id="tasksEmpty" style="display:none;">No tasks yet. Add the first one.</div>
+    <div class="pagination">
+      <button class="secondary" id="taskPrevBtn">Prev</button>
+      <span id="taskPageInfo"></span>
+      <button class="secondary" id="taskNextBtn">Next</button>
+    </div>
   </section>
 </main>
 
@@ -501,10 +547,18 @@
 
 <script>
 let API_BASE = document.getElementById('apiBaseInput').value;
+const PAGE_SIZE = 20;
 let workers = [];
 let tasks = [];
 let editingWorkerId = null;
 let editingTaskId = null;
+let workerPage = 0;
+let workerTotalPages = 0;
+let workerTotalElements = 0;
+let taskPage = 0;
+let taskTotalPages = 0;
+let taskTotalElements = 0;
+let taskWorkerIdFilter = null;
 
 // ---------- Tabs ----------
 document.querySelectorAll('.tab').forEach(tab => {
@@ -560,107 +614,159 @@ async function apiDelete(path) {
 }
 
 // ---------- Load data ----------
+function buildWorkerQuery() {
+  const params = new URLSearchParams();
+  params.set('page', workerPage);
+  params.set('size', PAGE_SIZE);
+  const department = document.getElementById('filterWorkerDepartment').value;
+  if (department) params.set('department', department);
+  return params.toString();
+}
+function buildTaskQuery() {
+  const params = new URLSearchParams();
+  params.set('page', taskPage);
+  params.set('size', PAGE_SIZE);
+  const priority = document.getElementById('filterPriority').value;
+  const status = document.getElementById('filterStatus').value;
+  const department = document.getElementById('filterDepartment').value;
+  const overdueOnly = document.getElementById('filterOverdue').checked;
+  if (priority) params.set('priority', priority);
+  if (status) params.set('status', status);
+  if (department) params.set('department', department);
+  if (overdueOnly) params.set('overdueOnly', 'true');
+  if (taskWorkerIdFilter != null) params.set('workerId', taskWorkerIdFilter);
+  return params.toString();
+}
+async function fetchWorkersPage() {
+  const result = await apiGet('/workers?' + buildWorkerQuery());
+  workers = result.content;
+  workerTotalPages = result.totalPages;
+  workerTotalElements = result.totalElements;
+}
+async function fetchTasksPage() {
+  const result = await apiGet('/tasks?' + buildTaskQuery());
+  tasks = result.content;
+  taskTotalPages = result.totalPages;
+  taskTotalElements = result.totalElements;
+}
 async function loadWorkers() {
-  workers = await apiGet('/workers');
+  await fetchWorkersPage();
+  if (!workers.length && workerPage > 0 && workerPage >= workerTotalPages) {
+    workerPage = Math.max(0, workerTotalPages - 1);
+    await fetchWorkersPage();
+  }
   renderWorkers();
-  renderTaskWorkerOptions();
 }
 async function loadTasks() {
-  tasks = await apiGet('/tasks');
+  await fetchTasksPage();
+  if (!tasks.length && taskPage > 0 && taskPage >= taskTotalPages) {
+    taskPage = Math.max(0, taskTotalPages - 1);
+    await fetchTasksPage();
+  }
   renderTasks();
 }
 async function loadAll() {
   clearError();
   try {
-    workers = await apiGet('/workers');
-    tasks = await apiGet('/tasks');
-    renderWorkers();
-    renderTaskWorkerOptions();
-    renderTasks();
+    await loadWorkers();
+    await loadTasks();
   } catch (e) {
     showError('Could not reach API at ' + API_BASE + '. Is the backend running and CORS enabled? (' + e.message + ')');
   }
 }
 
 // ---------- Worker filters ----------
-function getFilteredWorkers() {
-  const department = document.getElementById('filterWorkerDepartment').value;
-
-  return workers.filter(w => {
-    if (department && w.department !== department) return false;
-    return true;
-  });
+function isAnyWorkerFilterActive() {
+  return !!document.getElementById('filterWorkerDepartment').value;
 }
 
 // ---------- Render workers ----------
 function renderWorkers() {
   const tbody = document.getElementById('workersTbody');
   tbody.innerHTML = '';
-  const filtered = getFilteredWorkers();
   const emptyEl = document.getElementById('workersEmpty');
-  if (!workers.length) {
-    emptyEl.textContent = 'No workers yet. Add the first one.';
-    emptyEl.style.display = 'block';
-  } else if (!filtered.length) {
-    emptyEl.textContent = 'No workers match the selected filters.';
+  if (!workerTotalElements) {
+    emptyEl.textContent = isAnyWorkerFilterActive() ? 'No workers match the selected filters.' : 'No workers yet. Add the first one.';
     emptyEl.style.display = 'block';
   } else {
     emptyEl.style.display = 'none';
   }
 
-  filtered.forEach(w => {
-    const workerTasks = tasks.filter(t => t.workerId === w.id);
-    const tasksText = workerTasks.length
-            ? workerTasks.map(t => t.name).join(', ')
-            : '—';
-
+  workers.forEach(w => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${w.id}</td>
       <td>${escapeHtml(w.name)}</td>
       <td>${escapeHtml(w.department || '—')}</td>
-      <td>${escapeHtml(tasksText)}</td>
+      <td><button class="secondary" onclick="viewWorkerTasks(${w.id})">View tasks</button></td>
       <td class="row-actions">
         <button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>
         <button class="danger" onclick="deleteWorker(${w.id})">Delete</button>
       </td>`;
     tbody.appendChild(tr);
   });
+
+  renderWorkerPagination();
+}
+function renderWorkerPagination() {
+  const info = document.getElementById('workerPageInfo');
+  info.textContent = workerTotalElements
+    ? `Page ${workerPage + 1} of ${workerTotalPages} (${workerTotalElements} total)`
+    : 'No results';
+  document.getElementById('workerPrevBtn').disabled = workerPage <= 0;
+  document.getElementById('workerNextBtn').disabled = workerPage >= workerTotalPages - 1;
+}
+function viewWorkerTasks(workerId) {
+  taskWorkerIdFilter = workerId;
+  taskPage = 0;
+  document.querySelector('.tab[data-tab="tasks"]').click();
+  loadTasks();
 }
 
 // ---------- Task filters ----------
-function getFilteredTasks() {
-  const priority = document.getElementById('filterPriority').value;
-  const status = document.getElementById('filterStatus').value;
-  const department = document.getElementById('filterDepartment').value;
-  const overdueOnly = document.getElementById('filterOverdue').checked;
-
-  return tasks.filter(t => {
-    if (priority && (t.priority || 'MEDIUM') !== priority) return false;
-    if (status && (t.status || 'TODO') !== status) return false;
-    if (department && t.department !== department) return false;
-    if (overdueOnly && !isOverdue(t)) return false;
-    return true;
-  });
+function isAnyTaskFilterActive() {
+  return !!(document.getElementById('filterPriority').value ||
+            document.getElementById('filterStatus').value ||
+            document.getElementById('filterDepartment').value ||
+            document.getElementById('filterOverdue').checked ||
+            taskWorkerIdFilter != null);
 }
 
 // ---------- Render tasks ----------
+function renderTaskWorkerFilterNote() {
+  const note = document.getElementById('taskWorkerFilterNote');
+  if (taskWorkerIdFilter == null) {
+    note.classList.remove('active');
+    note.innerHTML = '';
+    return;
+  }
+  const worker = workers.find(w => w.id === taskWorkerIdFilter);
+  const label = worker ? worker.name : ('#' + taskWorkerIdFilter);
+  note.innerHTML = `<span>Showing tasks for worker: <strong>${escapeHtml(label)}</strong></span>`;
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'secondary';
+  clearBtn.textContent = 'Clear';
+  clearBtn.addEventListener('click', () => {
+    taskWorkerIdFilter = null;
+    taskPage = 0;
+    loadTasks();
+  });
+  note.appendChild(clearBtn);
+  note.classList.add('active');
+}
 function renderTasks() {
   const tbody = document.getElementById('tasksTbody');
   tbody.innerHTML = '';
-  const filtered = getFilteredTasks();
+  renderTaskWorkerFilterNote();
   const emptyEl = document.getElementById('tasksEmpty');
-  if (!tasks.length) {
-    emptyEl.textContent = 'No tasks yet. Add the first one.';
-    emptyEl.style.display = 'block';
-  } else if (!filtered.length) {
-    emptyEl.textContent = 'No tasks match the selected filters.';
+  if (!taskTotalElements) {
+    emptyEl.textContent = isAnyTaskFilterActive() ? 'No tasks match the selected filters.' : 'No tasks yet. Add the first one.';
     emptyEl.style.display = 'block';
   } else {
     emptyEl.style.display = 'none';
   }
 
-  filtered.forEach(t => {
+  tasks.forEach(t => {
     const workerName = t.workerId ? (workers.find(w => w.id === t.workerId)?.name || t.workerName || ('#' + t.workerId)) : '—';
     const status = t.status || 'TODO';
     const priority = t.priority || 'MEDIUM';
@@ -681,22 +787,40 @@ function renderTasks() {
       </td>`;
     tbody.appendChild(tr);
   });
+
+  renderTaskPagination();
+}
+function renderTaskPagination() {
+  const info = document.getElementById('taskPageInfo');
+  info.textContent = taskTotalElements
+    ? `Page ${taskPage + 1} of ${taskTotalPages} (${taskTotalElements} total)`
+    : 'No results';
+  document.getElementById('taskPrevBtn').disabled = taskPage <= 0;
+  document.getElementById('taskNextBtn').disabled = taskPage >= taskTotalPages - 1;
 }
 
 function isOverdue(t) {
   return !!t.dueDate && t.status !== 'DONE' && new Date(t.dueDate).getTime() < Date.now();
 }
 
-function renderTaskWorkerOptions() {
+// Fetches a fresh, department-scoped list rather than reusing the (paginated) `workers`
+// array, since the currently loaded page of workers may not include every match.
+async function renderTaskWorkerOptions() {
   const department = document.getElementById('taskDepartmentInput').value;
   const select = document.getElementById('taskWorkerInput');
   select.innerHTML = '<option value="">— none —</option>';
-  workers.filter(w => w.department === department).forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w.id;
-    opt.textContent = w.name;
-    select.appendChild(opt);
-  });
+  if (!department) return;
+  try {
+    const result = await apiGet('/workers?department=' + encodeURIComponent(department) + '&size=100');
+    result.content.forEach(w => {
+      const opt = document.createElement('option');
+      opt.value = w.id;
+      opt.textContent = w.name;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    // leave the dropdown at "— none —"; the server-side department check still guards saving
+  }
 }
 
 function escapeHtml(str) {
@@ -708,30 +832,33 @@ function escapeHtml(str) {
 document.getElementById('addWorkerBtn').addEventListener('click', () => openWorkerModal());
 document.getElementById('workerCancelBtn').addEventListener('click', () => closeWorkerModal());
 
-function renderWorkerTaskOptions(assignedIds) {
+// Fetches a fresh, department-scoped list rather than reusing the (paginated) `tasks`
+// array, and uses each task's own workerId (not the possibly-stale local array) to
+// decide which checkboxes start checked.
+async function renderWorkerTaskOptions() {
   const department = document.getElementById('workerDepartmentInput').value;
-  const selected = assignedIds || new Set();
   const container = document.getElementById('workerTasksInput');
   container.innerHTML = '';
-  const matching = tasks.filter(t => t.department === department);
-  if (!matching.length) {
-    container.innerHTML = '<div class="empty-hint">No tasks in this department.</div>';
-    return;
+  if (!department) return;
+  try {
+    const result = await apiGet('/tasks?department=' + encodeURIComponent(department) + '&size=100');
+    if (!result.content.length) {
+      container.innerHTML = '<div class="empty-hint">No tasks in this department.</div>';
+      return;
+    }
+    result.content.forEach(t => {
+      const label = document.createElement('label');
+      label.className = 'checkbox-option';
+      const checked = (editingWorkerId != null && t.workerId === editingWorkerId) ? ' checked' : '';
+      label.innerHTML = `<input type="checkbox" value="${t.id}"${checked}><span>${escapeHtml(t.name)}</span>`;
+      container.appendChild(label);
+    });
+  } catch (e) {
+    container.innerHTML = '<div class="empty-hint">Could not load tasks.</div>';
   }
-  matching.forEach(t => {
-    const label = document.createElement('label');
-    label.className = 'checkbox-option';
-    const checked = selected.has(t.id) ? ' checked' : '';
-    label.innerHTML = `<input type="checkbox" value="${t.id}"${checked}><span>${escapeHtml(t.name)}</span>`;
-    container.appendChild(label);
-  });
 }
 document.getElementById('workerDepartmentInput').addEventListener('change', () => {
-  const department = document.getElementById('workerDepartmentInput').value;
-  const assignedIds = editingWorkerId
-    ? new Set(tasks.filter(t => t.workerId === editingWorkerId && t.department === department).map(t => t.id))
-    : new Set();
-  renderWorkerTaskOptions(assignedIds);
+  renderWorkerTaskOptions();
 });
 function openWorkerModal() {
   editingWorkerId = null;
@@ -750,8 +877,7 @@ function openEditWorker(id) {
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
   document.getElementById('workerDepartmentInput').value = w.department || 'IT';
-  const assignedIds = new Set(tasks.filter(t => t.workerId === w.id).map(t => t.id));
-  renderWorkerTaskOptions(assignedIds);
+  renderWorkerTaskOptions();
   document.getElementById('workerModal').classList.add('active');
 }
 function closeWorkerModal() {
@@ -794,23 +920,65 @@ async function deleteWorker(id) {
 }
 
 // ---------- Worker filters ----------
-document.getElementById('filterWorkerDepartment').addEventListener('change', renderWorkers);
+document.getElementById('filterWorkerDepartment').addEventListener('change', () => {
+  workerPage = 0;
+  loadWorkers();
+});
 document.getElementById('filterWorkerClearBtn').addEventListener('click', () => {
   document.getElementById('filterWorkerDepartment').value = '';
-  renderWorkers();
+  workerPage = 0;
+  loadWorkers();
+});
+document.getElementById('workerPrevBtn').addEventListener('click', () => {
+  if (workerPage > 0) {
+    workerPage--;
+    loadWorkers();
+  }
+});
+document.getElementById('workerNextBtn').addEventListener('click', () => {
+  if (workerPage < workerTotalPages - 1) {
+    workerPage++;
+    loadWorkers();
+  }
 });
 
 // ---------- Task filters ----------
-document.getElementById('filterPriority').addEventListener('change', renderTasks);
-document.getElementById('filterStatus').addEventListener('change', renderTasks);
-document.getElementById('filterDepartment').addEventListener('change', renderTasks);
-document.getElementById('filterOverdue').addEventListener('change', renderTasks);
+document.getElementById('filterPriority').addEventListener('change', () => {
+  taskPage = 0;
+  loadTasks();
+});
+document.getElementById('filterStatus').addEventListener('change', () => {
+  taskPage = 0;
+  loadTasks();
+});
+document.getElementById('filterDepartment').addEventListener('change', () => {
+  taskPage = 0;
+  loadTasks();
+});
+document.getElementById('filterOverdue').addEventListener('change', () => {
+  taskPage = 0;
+  loadTasks();
+});
 document.getElementById('filterClearBtn').addEventListener('click', () => {
   document.getElementById('filterPriority').value = '';
   document.getElementById('filterStatus').value = '';
   document.getElementById('filterDepartment').value = '';
   document.getElementById('filterOverdue').checked = false;
-  renderTasks();
+  taskWorkerIdFilter = null;
+  taskPage = 0;
+  loadTasks();
+});
+document.getElementById('taskPrevBtn').addEventListener('click', () => {
+  if (taskPage > 0) {
+    taskPage--;
+    loadTasks();
+  }
+});
+document.getElementById('taskNextBtn').addEventListener('click', () => {
+  if (taskPage < taskTotalPages - 1) {
+    taskPage++;
+    loadTasks();
+  }
 });
 
 // ---------- Task modal ----------
@@ -822,11 +990,11 @@ function localDateTimeInputValue(date) {
   return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
     + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 }
-document.getElementById('taskDepartmentInput').addEventListener('change', () => {
-  renderTaskWorkerOptions();
+document.getElementById('taskDepartmentInput').addEventListener('change', async () => {
+  await renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = '';
 });
-function openTaskModal() {
+async function openTaskModal() {
   editingTaskId = null;
   clearError('taskModalError');
   document.getElementById('taskModalTitle').textContent = 'Add task';
@@ -837,11 +1005,11 @@ function openTaskModal() {
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = '';
   dueDateInput.min = localDateTimeInputValue(new Date());
-  renderTaskWorkerOptions();
+  await renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = '';
   document.getElementById('taskModal').classList.add('active');
 }
-function openEditTask(id) {
+async function openEditTask(id) {
   const t = tasks.find(t => t.id === id);
   if (!t) return;
   editingTaskId = id;
@@ -854,7 +1022,7 @@ function openEditTask(id) {
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = t.dueDate ? t.dueDate.slice(0, 16) : '';
   dueDateInput.min = localDateTimeInputValue(new Date());
-  renderTaskWorkerOptions();
+  await renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = t.workerId ? t.workerId : '';
   document.getElementById('taskModal').classList.add('active');
 }

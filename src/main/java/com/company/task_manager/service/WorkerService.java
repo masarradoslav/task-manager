@@ -1,21 +1,28 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ResourceNotFoundException;
+import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Task;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @Service
 public class WorkerService {
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private WorkerRepository workerRepository;
     private TaskRepository taskRepository;
 
@@ -24,8 +31,17 @@ public class WorkerService {
         this.taskRepository = taskRepository;
     }
 
-    public Collection<Worker> getAllWorkers(){
-        return workerRepository.findAll();
+    public Page<Worker> getWorkers(int page, int size, Department department){
+        int safePage = Math.max(page, 0);
+        int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+
+        Specification<Worker> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (department != null) predicates.add(cb.equal(root.get("department"), department));
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        return workerRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
     public Worker findById(int id){

@@ -1,17 +1,29 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ResourceNotFoundException;
+import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Task;
+import com.company.task_manager.model.TaskPriority;
+import com.company.task_manager.model.TaskStatus;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.util.Collection;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
 public class TaskService {
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private TaskRepository taskRepository;
     private WorkerRepository workerRepository;
 
@@ -21,8 +33,29 @@ public class TaskService {
         this.workerRepository = workerRepository;
     }
 
-    public Collection<Task> getAllTasks(){
-        return taskRepository.findAll();
+    public Page<Task> getTasks(int page, int size, TaskStatus status, TaskPriority priority,
+                                Department department, Boolean overdueOnly, Integer workerId){
+        int safePage = Math.max(page, 0);
+        int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+
+        Specification<Task> spec = buildFilter(status, priority, department, overdueOnly, workerId);
+        return taskRepository.findAll(spec, PageRequest.of(safePage, safeSize));
+    }
+
+    private Specification<Task> buildFilter(TaskStatus status, TaskPriority priority,
+                                             Department department, Boolean overdueOnly, Integer workerId){
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            if (priority != null) predicates.add(cb.equal(root.get("priority"), priority));
+            if (department != null) predicates.add(cb.equal(root.get("department"), department));
+            if (workerId != null) predicates.add(cb.equal(root.get("worker").get("id"), workerId));
+            if (Boolean.TRUE.equals(overdueOnly)) {
+                predicates.add(cb.lessThan(root.get("dueDate"), LocalDateTime.now()));
+                predicates.add(cb.notEqual(root.get("status"), TaskStatus.DONE));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     public Task findById(int id){

@@ -1,15 +1,18 @@
 package com.company.task_manager.controller;
 
+import com.company.task_manager.dto.PageResponse;
 import com.company.task_manager.dto.TaskRequest;
 import com.company.task_manager.dto.TaskResponse;
+import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Task;
+import com.company.task_manager.model.TaskPriority;
+import com.company.task_manager.model.TaskStatus;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.service.TaskService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Collection;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -22,8 +25,17 @@ public class TaskController {
     }
 
     @GetMapping
-    public Collection<TaskResponse> getAllTasks(){
-        return taskService.getAllTasks().stream().map(TaskResponse::from).toList();
+    public PageResponse<TaskResponse> getAllTasks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) TaskPriority priority,
+            @RequestParam(required = false) Department department,
+            @RequestParam(required = false) Boolean overdueOnly,
+            @RequestParam(required = false) Integer workerId
+    ){
+        Page<Task> result = taskService.getTasks(page, size, status, priority, department, overdueOnly, workerId);
+        return PageResponse.from(result.map(TaskResponse::from));
     }
 
     @GetMapping("/{id}")
