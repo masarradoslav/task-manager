@@ -45,7 +45,7 @@ public class WorkerController {
 
     @PutMapping("/{id}")
     public WorkerResponse updateWorker(@PathVariable int id, @Valid @RequestBody WorkerRequest request){
-        Worker updated = workerService.updateWorker(id, new Worker(request.name()));
+        Worker updated = workerService.updateWorker(id, new Worker(request.name()), request.taskIds());
         return WorkerResponse.from(updated);
     }
 

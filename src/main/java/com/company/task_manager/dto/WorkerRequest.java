@@ -4,7 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
-// taskIds is only honoured on creation (assign existing tasks to a new worker); ignored on update.
+// taskIds is the full desired set of assigned tasks: null leaves assignments untouched,
+// otherwise tasks missing from the list are unassigned and tasks in it are assigned.
 public record WorkerRequest(
         @NotBlank(message = "Name must not be blank")
         String name,

@@ -646,7 +646,8 @@ function escapeHtml(str) {
 document.getElementById('addWorkerBtn').addEventListener('click', () => openWorkerModal());
 document.getElementById('workerCancelBtn').addEventListener('click', () => closeWorkerModal());
 
-function renderWorkerTaskOptions() {
+function renderWorkerTaskOptions(assignedIds) {
+  const selected = assignedIds || new Set();
   const container = document.getElementById('workerTasksInput');
   container.innerHTML = '';
   if (!tasks.length) {
@@ -656,7 +657,8 @@ function renderWorkerTaskOptions() {
   tasks.forEach(t => {
     const label = document.createElement('label');
     label.className = 'checkbox-option';
-    label.innerHTML = `<input type="checkbox" value="${t.id}"><span>${escapeHtml(t.name)}</span>`;
+    const checked = selected.has(t.id) ? ' checked' : '';
+    label.innerHTML = `<input type="checkbox" value="${t.id}"${checked}><span>${escapeHtml(t.name)}</span>`;
     container.appendChild(label);
   });
 }
@@ -666,7 +668,6 @@ function openWorkerModal() {
   document.getElementById('workerModalTitle').textContent = 'Add worker';
   document.getElementById('workerNameInput').value = '';
   renderWorkerTaskOptions();
-  document.getElementById('workerTasksField').style.display = '';
   document.getElementById('workerModal').classList.add('active');
 }
 function openEditWorker(id) {
@@ -676,7 +677,8 @@ function openEditWorker(id) {
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
-  document.getElementById('workerTasksField').style.display = 'none';
+  const assignedIds = new Set(tasks.filter(t => t.workerId === w.id).map(t => t.id));
+  renderWorkerTaskOptions(assignedIds);
   document.getElementById('workerModal').classList.add('active');
 }
 function closeWorkerModal() {
@@ -689,11 +691,11 @@ document.getElementById('workerSaveBtn').addEventListener('click', async () => {
     showError('Name is required', 'workerModalError');
     return;
   }
+  const taskIds = Array.from(document.getElementById('workerTasksInput').querySelectorAll('input:checked')).map(cb => Number(cb.value));
   try {
     if (editingWorkerId) {
-      await apiPut('/workers/' + editingWorkerId, { name });
+      await apiPut('/workers/' + editingWorkerId, { name, taskIds });
     } else {
-      const taskIds = Array.from(document.getElementById('workerTasksInput').querySelectorAll('input:checked')).map(cb => Number(cb.value));
       await apiPost('/workers', { name, taskIds });
     }
     closeWorkerModal();
