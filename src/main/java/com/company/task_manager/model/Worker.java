@@ -1,17 +1,28 @@
 package com.company.task_manager.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
+
+// Manager a RegularEmployee sú konkrétne podtypy (single-table dedičnosť, stĺpec worker_type
+// rozlišuje riadky) - samotná trieda Worker sa nikdy neukladá priamo, slúži len ako spoločný
+// základ a ako dočasný "len id" placeholder pri prepájaní na existujúceho workera (pozri
+// TaskController.toEntity), kým službová vrstva nenahradí referenciu skutočnou entitou.
 @Entity
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "worker_type")
 public class Worker {
 
     @Id
@@ -19,6 +30,12 @@ public class Worker {
     private int id;
 
     private String name;
+
+    @Column(unique = true)
+    private String username;
+
+    // BCrypt hash, nikdy sa neserializuje do WorkerResponse
+    private String password;
 
     @Enumerated(EnumType.STRING)
     private Department department;
@@ -53,6 +70,22 @@ public class Worker {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public Department getDepartment() {

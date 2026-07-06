@@ -13,3 +13,13 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+server:
+  servlet:
+    session:
+      # cookie-only session tracking - disables the legacy ;jsessionid= URL fallback so a
+      # session can never be "logged into" just by someone copying a URL that contains it
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        same-site: lax

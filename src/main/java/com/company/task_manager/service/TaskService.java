@@ -1,5 +1,6 @@
 package com.company.task_manager.service;
 
+import com.company.task_manager.exception.ForbiddenOperationException;
 import com.company.task_manager.exception.ResourceNotFoundException;
 import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Task;
@@ -8,6 +9,7 @@ import com.company.task_manager.model.TaskStatus;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
+import com.company.task_manager.security.AppUserPrincipal;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,11 +36,15 @@ public class TaskService {
     }
 
     public Page<Task> getTasks(int page, int size, TaskStatus status, TaskPriority priority,
-                                Department department, Boolean overdueOnly, Integer workerId){
+                                Department department, Boolean overdueOnly, Integer workerId,
+                                AppUserPrincipal principal){
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
 
-        Specification<Task> spec = buildFilter(status, priority, department, overdueOnly, workerId);
+        // Manager/Employee can never see another department, regardless of what they pass in
+        Department effectiveDepartment = principal.isAdmin() ? department : principal.getDepartment();
+
+        Specification<Task> spec = buildFilter(status, priority, effectiveDepartment, overdueOnly, workerId);
         return taskRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
@@ -58,19 +64,28 @@ public class TaskService {
         };
     }
 
-    public Task findById(int id){
-        return taskRepository.findById(id)
+    public Task findById(int id, AppUserPrincipal principal){
+        Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
+        assertCanView(task, principal);
+        return task;
     }
 
-    public void deleteTask(int id){
-        if (!taskRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Task not found: " + id);
+    public void deleteTask(int id, AppUserPrincipal principal){
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
+        assertCanManage(task, principal);
+        taskRepository.delete(task);
+    }
+
+    public Task createTask(Task task, AppUserPrincipal principal){
+        if (principal.isEmployee()) {
+            throw new ForbiddenOperationException("Employees cannot create tasks");
         }
-        taskRepository.deleteById(id);
-    }
+        if (principal.isManager() && task.getDepartment() != principal.getDepartment()) {
+            throw new ForbiddenOperationException("Managers can only create tasks in their own department");
+        }
 
-    public Task createTask(Task task){
         if (task.getWorker() != null) {
             Optional<Worker> workerOpt = workerRepository.findById(task.getWorker().getId());
             task.setWorker(workerOpt.orElse(null));
@@ -84,9 +99,21 @@ public class TaskService {
     }
 
 
-    public Task updateTask(int id, Task updatedData){
+    public Task updateTask(int id, Task updatedData, AppUserPrincipal principal){
         Task existingTask = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
+
+        if (principal.isEmployee()) {
+            throw new ForbiddenOperationException("Employees can only update a task's status");
+        }
+        if (principal.isManager()) {
+            if (existingTask.getDepartment() != principal.getDepartment()) {
+                throw new ForbiddenOperationException("Managers can only edit tasks in their own department");
+            }
+            if (updatedData.getDepartment() != principal.getDepartment()) {
+                throw new ForbiddenOperationException("Managers cannot move a task to another department");
+            }
+        }
 
         existingTask.setName(updatedData.getName()); // odkiaľ zoberieš nové meno?
         existingTask.setStatus(updatedData.getStatus());
@@ -110,6 +137,40 @@ public class TaskService {
         }
 
         return taskRepository.save(existingTask); // ktorý objekt ukladáš?
+    }
+
+    // The one edit a regular employee is allowed to make: the status of a task assigned
+    // directly to them. Admin/Manager can also use this (subject to the same department
+    // scoping as a full edit) since it's just a narrower version of updateTask.
+    public Task updateStatus(int id, TaskStatus status, AppUserPrincipal principal){
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
+
+        if (principal.isEmployee()) {
+            boolean assignedToSelf = task.getWorker() != null
+                    && principal.getWorkerId() != null
+                    && task.getWorker().getId() == principal.getWorkerId();
+            if (!assignedToSelf) {
+                throw new ForbiddenOperationException("You can only update the status of tasks assigned to you");
+            }
+        } else {
+            assertCanManage(task, principal);
+        }
+
+        task.setStatus(status);
+        return taskRepository.save(task);
+    }
+
+    private void assertCanView(Task task, AppUserPrincipal principal) {
+        if (!principal.isAdmin() && task.getDepartment() != principal.getDepartment()) {
+            throw new ForbiddenOperationException("You cannot view tasks from another department");
+        }
+    }
+
+    private void assertCanManage(Task task, AppUserPrincipal principal) {
+        if (principal.isAdmin()) return;
+        if (principal.isManager() && task.getDepartment() == principal.getDepartment()) return;
+        throw new ForbiddenOperationException("You are not allowed to manage this task");
     }
 
     private void assertSameDepartment(Task task, Worker worker) {

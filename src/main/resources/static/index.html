@@ -35,6 +35,19 @@
     font-size: 22px;
     font-weight: 700;
   }
+  .user-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
   .tabs {
     display: flex;
     gap: 4px;
@@ -246,7 +259,7 @@
     font-size: 12px;
   }
 
-  .row-actions { display: flex; gap: 6px; }
+  .row-actions { display: flex; gap: 6px; align-items: center; }
   .row-actions button { padding: 5px 10px; font-size: 12px; }
 
   /* Modal */
@@ -283,6 +296,13 @@
     border: 1px solid var(--border);
     border-radius: 5px;
     font-size: 13px;
+  }
+  .field .hint {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 400;
   }
   .checkbox-list {
     border: 1px solid var(--border);
@@ -360,12 +380,59 @@
     border-radius: 4px;
     width: 220px;
   }
+
+  /* Login screen */
+  #loginScreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .login-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    width: 320px;
+  }
+  .login-card h1 {
+    font-size: 20px;
+    margin: 0 0 20px 0;
+    text-align: center;
+  }
+  .login-card button { width: 100%; }
 </style>
 </head>
 <body>
 
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>Task Manager</h1>
+    <div class="error-box" id="loginError"></div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="loginUsernameInput" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPasswordInput" autocomplete="current-password">
+    </div>
+    <button id="loginBtn">Log in</button>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="appShell" style="display:none;">
+
 <header>
-  <h1>Task Manager</h1>
+  <div class="user-bar">
+    <h1>Task Manager</h1>
+    <div class="user-info">
+      <span id="currentUserLabel"></span>
+      <button class="secondary" id="logoutBtn">Log out</button>
+    </div>
+  </div>
   <div class="tabs">
     <div class="tab active" data-tab="workers">Workers</div>
     <div class="tab" data-tab="tasks">Tasks</div>
@@ -387,7 +454,7 @@
       <button id="addWorkerBtn">+ Add worker</button>
     </div>
     <div class="filters">
-      <div class="filter-field">
+      <div class="filter-field" id="workerDepartmentFilterField">
         <label>Department</label>
         <select id="filterWorkerDepartment">
           <option value="">All</option>
@@ -400,7 +467,7 @@
     </div>
     <table id="workersTable">
       <thead>
-        <tr><th>ID</th><th>Name</th><th>Department</th><th>Tasks</th><th></th></tr>
+        <tr><th>ID</th><th>Name</th><th>Department</th><th>Type</th><th>Tasks</th><th></th></tr>
       </thead>
       <tbody id="workersTbody"></tbody>
     </table>
@@ -438,7 +505,7 @@
           <option value="DONE">DONE</option>
         </select>
       </div>
-      <div class="filter-field">
+      <div class="filter-field" id="taskDepartmentFilterField">
         <label>Department</label>
         <select id="filterDepartment">
           <option value="">All</option>
@@ -483,6 +550,21 @@
         <option value="HR">HR</option>
         <option value="ACCOUNTING">ACCOUNTING</option>
       </select>
+    </div>
+    <div class="field" id="workerTypeField">
+      <label>Worker type *</label>
+      <select id="workerTypeInput">
+        <option value="EMPLOYEE">Employee</option>
+        <option value="MANAGER">Manager</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Username *</label>
+      <input type="text" id="workerUsernameInput" placeholder="e.g. jnovak" autocomplete="off">
+    </div>
+    <div class="field">
+      <label id="workerPasswordLabel">Password *</label>
+      <input type="password" id="workerPasswordInput" autocomplete="new-password">
     </div>
     <div class="field" id="workerTasksField">
       <label>Assign tasks (optional)</label>
@@ -545,9 +627,13 @@
   </div>
 </div>
 
+</div>
+<!-- /APP SHELL -->
+
 <script>
 let API_BASE = document.getElementById('apiBaseInput').value;
 const PAGE_SIZE = 20;
+let currentUser = null;
 let workers = [];
 let tasks = [];
 let editingWorkerId = null;
@@ -580,28 +666,128 @@ function clearError(boxId = 'errorBox') {
   document.getElementById(boxId).classList.remove('active');
 }
 
+// ---------- Auth / session ----------
+// The session id lives only in an HttpOnly cookie (never a URL), so credentials: 'include'
+// is what carries it - there is no token to copy out of a URL or paste elsewhere.
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+function showLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'none';
+}
+function showAppShell() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = 'block';
+}
+function handleUnauthenticated() {
+  currentUser = null;
+  showLoginScreen();
+}
+function applyRoleVisibility() {
+  const role = currentUser.role;
+  const parts = ['Logged in as ' + currentUser.name + ' (' + role + ')'];
+  if (currentUser.department) parts.push(currentUser.department + ' department');
+  document.getElementById('currentUserLabel').textContent = parts.join(' — ');
+
+  document.getElementById('addWorkerBtn').style.display = role === 'EMPLOYEE' ? 'none' : '';
+  document.getElementById('addTaskBtn').style.display = role === 'EMPLOYEE' ? 'none' : '';
+
+  const isAdmin = role === 'ADMIN';
+  document.getElementById('workerDepartmentFilterField').style.display = isAdmin ? '' : 'none';
+  document.getElementById('taskDepartmentFilterField').style.display = isAdmin ? '' : 'none';
+}
+async function bootstrapSession() {
+  try {
+    const res = await fetch(API_BASE + '/auth/me', { credentials: 'include' });
+    if (!res.ok) {
+      showLoginScreen();
+      return;
+    }
+    currentUser = await res.json();
+    showAppShell();
+    applyRoleVisibility();
+    await loadAll();
+  } catch (e) {
+    showLoginScreen();
+  }
+}
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const username = document.getElementById('loginUsernameInput').value.trim();
+  const password = document.getElementById('loginPasswordInput').value;
+  clearError('loginError');
+  if (!username || !password) {
+    showError('Username and password are required', 'loginError');
+    return;
+  }
+  try {
+    const res = await fetch(API_BASE + '/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username, password }).toString()
+    });
+    if (!res.ok) {
+      throw new Error('Invalid username or password');
+    }
+    document.getElementById('loginPasswordInput').value = '';
+    await bootstrapSession();
+  } catch (e) {
+    showError(e.message, 'loginError');
+  }
+});
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try {
+    await fetch(API_BASE + '/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-XSRF-TOKEN': getCsrfToken() }
+    });
+  } catch (e) {
+    // ignore - we're clearing local state regardless
+  }
+  handleUnauthenticated();
+});
+
 // ---------- API helpers ----------
 async function apiGet(path) {
-  const res = await fetch(API_BASE + path);
+  const res = await fetch(API_BASE + path, { credentials: 'include' });
+  if (res.status === 401) handleUnauthenticated();
   if (!res.ok) throw new Error('GET ' + path + ' failed (' + res.status + ')');
   return res.status === 204 ? null : res.json();
 }
 async function apiPost(path, body) {
   const res = await fetch(API_BASE + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
     body: JSON.stringify(body)
   });
+  if (res.status === 401) handleUnauthenticated();
   if (!res.ok) throw new Error(await errorMessage(res, 'POST ' + path));
   return res.status === 204 ? null : res.json();
 }
 async function apiPut(path, body) {
   const res = await fetch(API_BASE + path, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
     body: JSON.stringify(body)
   });
+  if (res.status === 401) handleUnauthenticated();
   if (!res.ok) throw new Error(await errorMessage(res, 'PUT ' + path));
+  return res.status === 204 ? null : res.json();
+}
+async function apiPatch(path, body) {
+  const res = await fetch(API_BASE + path, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
+    body: JSON.stringify(body)
+  });
+  if (res.status === 401) handleUnauthenticated();
+  if (!res.ok) throw new Error(await errorMessage(res, 'PATCH ' + path));
   return res.status === 204 ? null : res.json();
 }
 async function errorMessage(res, label) {
@@ -609,7 +795,12 @@ async function errorMessage(res, label) {
   return text || (label + ' failed (' + res.status + ')');
 }
 async function apiDelete(path) {
-  const res = await fetch(API_BASE + path, { method: 'DELETE' });
+  const res = await fetch(API_BASE + path, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'X-XSRF-TOKEN': getCsrfToken() }
+  });
+  if (res.status === 401) handleUnauthenticated();
   if (!res.ok) throw new Error('DELETE ' + path + ' failed (' + res.status + ')');
 }
 
@@ -681,6 +872,13 @@ function isAnyWorkerFilterActive() {
 }
 
 // ---------- Render workers ----------
+function renderWorkerActions(w) {
+  const canManage = currentUser.role === 'ADMIN' ||
+    (currentUser.role === 'MANAGER' && w.workerType !== 'MANAGER');
+  if (!canManage) return '';
+  return `<button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>
+        <button class="danger" onclick="deleteWorker(${w.id})">Delete</button>`;
+}
 function renderWorkers() {
   const tbody = document.getElementById('workersTbody');
   tbody.innerHTML = '';
@@ -698,11 +896,9 @@ function renderWorkers() {
       <td>${w.id}</td>
       <td>${escapeHtml(w.name)}</td>
       <td>${escapeHtml(w.department || '—')}</td>
+      <td>${escapeHtml(w.workerType || '—')}</td>
       <td><button class="secondary" onclick="viewWorkerTasks(${w.id})">View tasks</button></td>
-      <td class="row-actions">
-        <button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>
-        <button class="danger" onclick="deleteWorker(${w.id})">Delete</button>
-      </td>`;
+      <td class="row-actions">${renderWorkerActions(w)}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -711,7 +907,7 @@ function renderWorkers() {
 function renderWorkerPagination() {
   const info = document.getElementById('workerPageInfo');
   info.textContent = workerTotalElements
-    ? `Page ${workerPage + 1} of ${workerTotalPages} (${workerTotalElements} total)`
+    ? `Page ${workerPage + 1} of ${workerTotalPages} (${workerTotalElements} total workers)`
     : 'No results';
   document.getElementById('workerPrevBtn').disabled = workerPage <= 0;
   document.getElementById('workerNextBtn').disabled = workerPage >= workerTotalPages - 1;
@@ -754,6 +950,17 @@ function renderTaskWorkerFilterNote() {
   note.appendChild(clearBtn);
   note.classList.add('active');
 }
+function renderTaskActions(t) {
+  if (currentUser.role === 'EMPLOYEE') {
+    if (t.workerId !== currentUser.workerId) return '';
+    const options = ['TODO', 'IN_PROGRESS', 'DONE']
+      .map(s => `<option value="${s}"${t.status === s ? ' selected' : ''}>${s}</option>`)
+      .join('');
+    return `<select onchange="updateTaskStatusInline(${t.id}, this.value)">${options}</select>`;
+  }
+  return `<button class="secondary" onclick="openEditTask(${t.id})">Edit</button>
+        <button class="danger" onclick="deleteTask(${t.id})">Delete</button>`;
+}
 function renderTasks() {
   const tbody = document.getElementById('tasksTbody');
   tbody.innerHTML = '';
@@ -781,10 +988,7 @@ function renderTasks() {
       <td>${escapeHtml(t.department || '—')}</td>
       <td>${escapeHtml(dueDateText)}${overdue ? ' <span class="overdue-badge">OVERDUE</span>' : ''}</td>
       <td>${escapeHtml(workerName)}</td>
-      <td class="row-actions">
-        <button class="secondary" onclick="openEditTask(${t.id})">Edit</button>
-        <button class="danger" onclick="deleteTask(${t.id})">Delete</button>
-      </td>`;
+      <td class="row-actions">${renderTaskActions(t)}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -793,10 +997,20 @@ function renderTasks() {
 function renderTaskPagination() {
   const info = document.getElementById('taskPageInfo');
   info.textContent = taskTotalElements
-    ? `Page ${taskPage + 1} of ${taskTotalPages} (${taskTotalElements} total)`
+    ? `Page ${taskPage + 1} of ${taskTotalPages} (${taskTotalElements} total tasks)`
     : 'No results';
   document.getElementById('taskPrevBtn').disabled = taskPage <= 0;
   document.getElementById('taskNextBtn').disabled = taskPage >= taskTotalPages - 1;
+}
+async function updateTaskStatusInline(id, status) {
+  clearError();
+  try {
+    await apiPatch('/tasks/' + id + '/status', { status });
+    await loadTasks();
+  } catch (e) {
+    showError('Could not update status (' + e.message + ')');
+    await loadTasks();
+  }
 }
 
 function isOverdue(t) {
@@ -865,7 +1079,23 @@ function openWorkerModal() {
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Add worker';
   document.getElementById('workerNameInput').value = '';
-  document.getElementById('workerDepartmentInput').value = 'IT';
+  document.getElementById('workerUsernameInput').value = '';
+  document.getElementById('workerPasswordInput').value = '';
+  document.getElementById('workerPasswordLabel').textContent = 'Password *';
+
+  const deptInput = document.getElementById('workerDepartmentInput');
+  const isManager = currentUser.role === 'MANAGER';
+  deptInput.value = isManager ? currentUser.department : 'IT';
+  deptInput.disabled = isManager;
+
+  const typeField = document.getElementById('workerTypeField');
+  const typeInput = document.getElementById('workerTypeInput');
+  typeField.style.display = '';
+  typeInput.innerHTML = isManager
+    ? '<option value="EMPLOYEE">Employee</option>'
+    : '<option value="EMPLOYEE">Employee</option><option value="MANAGER">Manager</option>';
+  typeInput.value = 'EMPLOYEE';
+
   renderWorkerTaskOptions();
   document.getElementById('workerModal').classList.add('active');
 }
@@ -876,7 +1106,17 @@ function openEditWorker(id) {
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
-  document.getElementById('workerDepartmentInput').value = w.department || 'IT';
+  document.getElementById('workerUsernameInput').value = w.username;
+  document.getElementById('workerPasswordInput').value = '';
+  document.getElementById('workerPasswordLabel').textContent = 'New password (leave blank to keep current)';
+
+  const deptInput = document.getElementById('workerDepartmentInput');
+  deptInput.value = w.department || 'IT';
+  deptInput.disabled = currentUser.role === 'MANAGER';
+
+  // a worker's type is fixed at creation - not editable afterwards
+  document.getElementById('workerTypeField').style.display = 'none';
+
   renderWorkerTaskOptions();
   document.getElementById('workerModal').classList.add('active');
 }
@@ -886,6 +1126,9 @@ function closeWorkerModal() {
 document.getElementById('workerSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('workerNameInput').value.trim();
   const department = document.getElementById('workerDepartmentInput').value;
+  const username = document.getElementById('workerUsernameInput').value.trim();
+  const password = document.getElementById('workerPasswordInput').value;
+  const workerType = document.getElementById('workerTypeInput').value;
   clearError('workerModalError');
   if (!name) {
     showError('Name is required', 'workerModalError');
@@ -895,12 +1138,22 @@ document.getElementById('workerSaveBtn').addEventListener('click', async () => {
     showError('Department is required', 'workerModalError');
     return;
   }
+  if (!username) {
+    showError('Username is required', 'workerModalError');
+    return;
+  }
+  if (!editingWorkerId && !password) {
+    showError('Password is required', 'workerModalError');
+    return;
+  }
   const taskIds = Array.from(document.getElementById('workerTasksInput').querySelectorAll('input:checked')).map(cb => Number(cb.value));
+  const body = { name, department, username, workerType, taskIds };
+  if (password) body.password = password;
   try {
     if (editingWorkerId) {
-      await apiPut('/workers/' + editingWorkerId, { name, department, taskIds });
+      await apiPut('/workers/' + editingWorkerId, body);
     } else {
-      await apiPost('/workers', { name, department, taskIds });
+      await apiPost('/workers', body);
     }
     closeWorkerModal();
     await loadAll();
@@ -1001,7 +1254,12 @@ async function openTaskModal() {
   document.getElementById('taskNameInput').value = '';
   document.getElementById('taskStatusInput').value = 'TODO';
   document.getElementById('taskPriorityInput').value = 'MEDIUM';
-  document.getElementById('taskDepartmentInput').value = 'IT';
+
+  const deptInput = document.getElementById('taskDepartmentInput');
+  const isManager = currentUser.role === 'MANAGER';
+  deptInput.value = isManager ? currentUser.department : 'IT';
+  deptInput.disabled = isManager;
+
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = '';
   dueDateInput.min = localDateTimeInputValue(new Date());
@@ -1018,7 +1276,11 @@ async function openEditTask(id) {
   document.getElementById('taskNameInput').value = t.name;
   document.getElementById('taskStatusInput').value = t.status || 'TODO';
   document.getElementById('taskPriorityInput').value = t.priority || 'MEDIUM';
-  document.getElementById('taskDepartmentInput').value = t.department || 'IT';
+
+  const deptInput = document.getElementById('taskDepartmentInput');
+  deptInput.value = t.department || 'IT';
+  deptInput.disabled = currentUser.role === 'MANAGER';
+
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = t.dueDate ? t.dueDate.slice(0, 16) : '';
   dueDateInput.min = localDateTimeInputValue(new Date());
@@ -1092,11 +1354,11 @@ async function deleteTask(id) {
 // ---------- API base reload ----------
 document.getElementById('reloadBtn').addEventListener('click', () => {
   API_BASE = document.getElementById('apiBaseInput').value.replace(/\/$/, '');
-  loadAll();
+  bootstrapSession();
 });
 
 // ---------- Init ----------
-loadAll();
+bootstrapSession();
 </script>
 
 </body>

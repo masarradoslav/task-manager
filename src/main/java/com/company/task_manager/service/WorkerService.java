@@ -1,15 +1,22 @@
 package com.company.task_manager.service;
 
+import com.company.task_manager.exception.ForbiddenOperationException;
 import com.company.task_manager.exception.ResourceNotFoundException;
 import com.company.task_manager.model.Department;
+import com.company.task_manager.model.Manager;
+import com.company.task_manager.model.RegularEmployee;
 import com.company.task_manager.model.Task;
 import com.company.task_manager.model.Worker;
+import com.company.task_manager.model.WorkerType;
+import com.company.task_manager.repository.ManagerRepository;
 import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
+import com.company.task_manager.security.AppUserPrincipal;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,32 +32,67 @@ public class WorkerService {
 
     private WorkerRepository workerRepository;
     private TaskRepository taskRepository;
+    private ManagerRepository managerRepository;
+    private PasswordEncoder passwordEncoder;
 
-    public WorkerService(WorkerRepository workerRepository, TaskRepository taskRepository) {
+    public WorkerService(WorkerRepository workerRepository, TaskRepository taskRepository,
+                          ManagerRepository managerRepository, PasswordEncoder passwordEncoder) {
         this.workerRepository = workerRepository;
         this.taskRepository = taskRepository;
+        this.managerRepository = managerRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    public Page<Worker> getWorkers(int page, int size, Department department){
+    public Page<Worker> getWorkers(int page, int size, Department department, AppUserPrincipal principal){
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
 
+        Department effectiveDepartment = principal.isAdmin() ? department : principal.getDepartment();
+
         Specification<Worker> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            if (department != null) predicates.add(cb.equal(root.get("department"), department));
+            if (effectiveDepartment != null) predicates.add(cb.equal(root.get("department"), effectiveDepartment));
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
         return workerRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
-    public Worker findById(int id){
-        return workerRepository.findById(id)
+    public Worker findById(int id, AppUserPrincipal principal){
+        Worker worker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
+        if (!principal.isAdmin() && worker.getDepartment() != principal.getDepartment()) {
+            throw new ForbiddenOperationException("You cannot view workers from another department");
+        }
+        return worker;
     }
 
     @Transactional
-    public Worker createWorker(Worker worker, List<Integer> taskIds){
+    public Worker createWorker(String name, Department department, String username, String password,
+                                WorkerType workerType, List<Integer> taskIds, AppUserPrincipal principal){
+        if (principal.isEmployee()) {
+            throw new ForbiddenOperationException("Employees cannot create workers");
+        }
+        if (principal.isManager()) {
+            if (department != principal.getDepartment()) {
+                throw new ForbiddenOperationException("Managers can only create workers in their own department");
+            }
+            if (workerType == WorkerType.MANAGER) {
+                throw new ForbiddenOperationException("Managers cannot create other managers");
+            }
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+        if (workerType == WorkerType.MANAGER && managerRepository.existsByDepartment(department)) {
+            throw new IllegalArgumentException("Department " + department + " already has a manager");
+        }
+
+        Worker worker = workerType == WorkerType.MANAGER ? new Manager(name) : new RegularEmployee(name);
+        worker.setDepartment(department);
+        worker.setUsername(username);
+        worker.setPassword(passwordEncoder.encode(password));
+
         Worker savedWorker = workerRepository.save(worker);
 
         if (taskIds != null) {
@@ -66,20 +108,30 @@ public class WorkerService {
         return savedWorker;
     }
 
-    public void deleteWorker(int id){
-        if (!workerRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Worker not found: " + id);
-        }
-        workerRepository.deleteById(id);
+    public void deleteWorker(int id, AppUserPrincipal principal){
+        Worker worker = workerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
+        assertCanManage(worker, principal);
+        workerRepository.delete(worker);
     }
 
     @Transactional
-    public Worker updateWorker(int id, Worker updatedData, List<Integer> taskIds){
+    public Worker updateWorker(int id, String name, Department department, String username, String password,
+                                List<Integer> taskIds, AppUserPrincipal principal){
         Worker existingWorker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
 
-        existingWorker.setName(updatedData.getName()); // odkiaľ zoberieš nové meno?
-        existingWorker.setDepartment(updatedData.getDepartment());
+        assertCanManage(existingWorker, principal);
+        if (principal.isManager() && department != principal.getDepartment()) {
+            throw new ForbiddenOperationException("Managers cannot move a worker to another department");
+        }
+
+        existingWorker.setName(name); // odkiaľ zoberieš nové meno?
+        existingWorker.setDepartment(department);
+        existingWorker.setUsername(username);
+        if (password != null && !password.isBlank()) {
+            existingWorker.setPassword(passwordEncoder.encode(password));
+        }
 
         if (taskIds != null) {
             Set<Integer> desiredIds = new HashSet<>(taskIds);
@@ -112,6 +164,12 @@ public class WorkerService {
         }
 
         return workerRepository.save(existingWorker); // ktorý objekt ukladáš?
+    }
+
+    private void assertCanManage(Worker worker, AppUserPrincipal principal) {
+        if (principal.isAdmin()) return;
+        if (principal.isManager() && worker.getDepartment() == principal.getDepartment() && !(worker instanceof Manager)) return;
+        throw new ForbiddenOperationException("You are not allowed to manage this worker");
     }
 
     private void assertSameDepartment(Worker worker, Task task) {
