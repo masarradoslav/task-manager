@@ -4,11 +4,11 @@ import com.company.task_manager.dto.WorkerRequest;
 import com.company.task_manager.dto.WorkerResponse;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.service.WorkerService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
-import java.util.Optional;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -27,12 +27,12 @@ public class WorkerController {
 
 
     @GetMapping("/{id}")
-    public Optional<WorkerResponse> getWorkerById(@PathVariable int id){
-        return workerService.findById(id).map(WorkerResponse::from);
+    public WorkerResponse getWorkerById(@PathVariable int id){
+        return WorkerResponse.from(workerService.findById(id));
     }
 
     @PostMapping
-    public WorkerResponse createWorker(@RequestBody WorkerRequest request){
+    public WorkerResponse createWorker(@Valid @RequestBody WorkerRequest request){
         Worker saved = workerService.createWorker(new Worker(request.name()));
         return WorkerResponse.from(saved);
     }
@@ -44,9 +44,9 @@ public class WorkerController {
     }
 
     @PutMapping("/{id}")
-    public WorkerResponse updateWorker(@PathVariable int id, @RequestBody WorkerRequest request){
+    public WorkerResponse updateWorker(@PathVariable int id, @Valid @RequestBody WorkerRequest request){
         Worker updated = workerService.updateWorker(id, new Worker(request.name()));
-        return updated != null ? WorkerResponse.from(updated) : null;
+        return WorkerResponse.from(updated);
     }
 
 }

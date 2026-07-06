@@ -1,4 +1,9 @@
 package com.company.task_manager.dto;
 
-public record WorkerRequest(String name) {
+import jakarta.validation.constraints.NotBlank;
+
+public record WorkerRequest(
+        @NotBlank(message = "Name must not be blank")
+        String name
+) {
 }

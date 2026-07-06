@@ -1,12 +1,12 @@
 package com.company.task_manager.service;
 
+import com.company.task_manager.exception.ResourceNotFoundException;
 import com.company.task_manager.model.Task;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -25,17 +25,19 @@ public class TaskService {
         return taskRepository.findAll();
     }
 
-    public Optional<Task> findById(int id){
-        return taskRepository.findById(id);
+    public Task findById(int id){
+        return taskRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
     }
 
     public void deleteTask(int id){
+        if (!taskRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Task not found: " + id);
+        }
         taskRepository.deleteById(id);
     }
 
     public Task createTask(Task task){
-        validateDueDate(task.getDueDate());
-
         if (task.getWorker() != null) {
             Optional<Worker> workerOpt = workerRepository.findById(task.getWorker().getId());
             task.setWorker(workerOpt.orElse(null));
@@ -46,13 +48,9 @@ public class TaskService {
 
 
     public Task updateTask(int id, Task updatedData){
-        Optional<Task> existingTaskOpt = taskRepository.findById(id);
+        Task existingTask = taskRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
 
-        if (existingTaskOpt.isEmpty()) {
-            return null;
-        }
-
-        Task existingTask = existingTaskOpt.get();
         existingTask.setName(updatedData.getName()); // odkiaľ zoberieš nové meno?
 
         if (updatedData.getWorker() != null) {
@@ -73,16 +71,9 @@ public class TaskService {
         }
 
         if (updatedData.getDueDate() != null) {
-            validateDueDate(updatedData.getDueDate());
             existingTask.setDueDate(updatedData.getDueDate());
         }
 
         return taskRepository.save(existingTask); // ktorý objekt ukladáš?
-    }
-
-    private void validateDueDate(LocalDateTime dueDate) {
-        if (dueDate != null && !dueDate.isAfter(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Due date must be in the future");
-        }
     }
 }

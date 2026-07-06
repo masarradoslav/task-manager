@@ -5,11 +5,11 @@ import com.company.task_manager.dto.TaskResponse;
 import com.company.task_manager.model.Task;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.service.TaskService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
-import java.util.Optional;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -27,20 +27,20 @@ public class TaskController {
     }
 
     @GetMapping("/{id}")
-    public Optional<TaskResponse> getTaskById(@PathVariable int id){
-        return taskService.findById(id).map(TaskResponse::from);
+    public TaskResponse getTaskById(@PathVariable int id){
+        return TaskResponse.from(taskService.findById(id));
     }
 
     @PostMapping
-    public TaskResponse createTask(@RequestBody TaskRequest request){
+    public TaskResponse createTask(@Valid @RequestBody TaskRequest request){
         Task saved = taskService.createTask(toEntity(request));
         return TaskResponse.from(saved);
     }
 
     @PutMapping("/{id}")
-    public TaskResponse updateTask(@PathVariable int id, @RequestBody TaskRequest request){
+    public TaskResponse updateTask(@PathVariable int id, @Valid @RequestBody TaskRequest request){
         Task updated = taskService.updateTask(id, toEntity(request));
-        return updated != null ? TaskResponse.from(updated) : null;
+        return TaskResponse.from(updated);
     }
 
     @DeleteMapping("/{id}")
