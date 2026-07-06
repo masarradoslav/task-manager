@@ -1,6 +1,8 @@
 package com.company.task_manager.model;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
@@ -17,6 +19,9 @@ public class Worker {
     private int id;
 
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    private Department department;
 
     // mappedBy = "worker" znamená, že vlastníkom vzťahu je pole "worker" v triede Task
     // Entita sa už priamo neserializuje (controllery vracajú WorkerResponse DTO), takže
@@ -48,6 +53,14 @@ public class Worker {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Department getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(Department department) {
+        this.department = department;
     }
 
     public Collection<Task> getTasks() {

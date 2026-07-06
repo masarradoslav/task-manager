@@ -1,5 +1,6 @@
 package com.company.task_manager.dto;
 
+import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Task;
 import com.company.task_manager.model.TaskPriority;
 import com.company.task_manager.model.TaskStatus;
@@ -14,6 +15,7 @@ public record TaskResponse(
         TaskStatus status,
         TaskPriority priority,
         LocalDateTime dueDate,
+        Department department,
         Integer workerId,
         String workerName
 ) {
@@ -24,6 +26,7 @@ public record TaskResponse(
                 task.getStatus(),
                 task.getPriority(),
                 task.getDueDate(),
+                task.getDepartment(),
                 task.getWorker() != null ? task.getWorker().getId() : null,
                 task.getWorker() != null ? task.getWorker().getName() : null
         );

@@ -23,6 +23,9 @@ public class Task {
     // Lokálny dátum/čas bez časovej zóny - termín splnenia úlohy
     private LocalDateTime dueDate;
 
+    @Enumerated(EnumType.STRING)
+    private Department department;
+
     // Toto je "vlastník" vzťahu - v tabuľke task bude stĺpec worker_id
     @ManyToOne
     private Worker worker;
@@ -84,6 +87,14 @@ public class Task {
 
     public void setDueDate(LocalDateTime dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public Department getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(Department department) {
+        this.department = department;
     }
 
     @Override

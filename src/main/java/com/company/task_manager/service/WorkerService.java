@@ -41,6 +41,7 @@ public class WorkerService {
             for (Integer taskId : taskIds) {
                 Task task = taskRepository.findById(taskId)
                         .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + taskId));
+                assertSameDepartment(savedWorker, task);
                 savedWorker.addTask(task);
                 taskRepository.save(task);
             }
@@ -62,6 +63,7 @@ public class WorkerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
 
         existingWorker.setName(updatedData.getName()); // odkiaľ zoberieš nové meno?
+        existingWorker.setDepartment(updatedData.getDepartment());
 
         if (taskIds != null) {
             Set<Integer> desiredIds = new HashSet<>(taskIds);
@@ -80,12 +82,25 @@ public class WorkerService {
                 if (!alreadyAssigned) {
                     Task task = taskRepository.findById(taskId)
                             .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + taskId));
+                    assertSameDepartment(existingWorker, task);
                     existingWorker.addTask(task);
                     taskRepository.save(task);
                 }
             }
         }
 
+        // re-checked unconditionally (covers tasks kept from before this update, in case the
+        // worker's department just changed) so no task can end up in another department's worker
+        for (Task task : existingWorker.getTasks()) {
+            assertSameDepartment(existingWorker, task);
+        }
+
         return workerRepository.save(existingWorker); // ktorý objekt ukladáš?
+    }
+
+    private void assertSameDepartment(Worker worker, Task task) {
+        if (worker.getDepartment() != task.getDepartment()) {
+            throw new IllegalArgumentException("Worker department must match the assigned task's department");
+        }
     }
 }

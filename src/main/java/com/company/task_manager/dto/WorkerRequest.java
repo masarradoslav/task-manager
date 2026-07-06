@@ -1,6 +1,8 @@
 package com.company.task_manager.dto;
 
+import com.company.task_manager.model.Department;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -9,6 +11,8 @@ import java.util.List;
 public record WorkerRequest(
         @NotBlank(message = "Name must not be blank")
         String name,
+        @NotNull(message = "Department is required")
+        Department department,
         List<Integer> taskIds
 ) {
 }

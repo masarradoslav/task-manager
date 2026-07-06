@@ -43,6 +43,10 @@ public class TaskService {
             task.setWorker(workerOpt.orElse(null));
         }
 
+        if (task.getWorker() != null) {
+            assertSameDepartment(task, task.getWorker());
+        }
+
         return taskRepository.save(task);
     }
 
@@ -52,6 +56,10 @@ public class TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
 
         existingTask.setName(updatedData.getName()); // odkiaľ zoberieš nové meno?
+        existingTask.setStatus(updatedData.getStatus());
+        existingTask.setPriority(updatedData.getPriority());
+        existingTask.setDueDate(updatedData.getDueDate());
+        existingTask.setDepartment(updatedData.getDepartment());
 
         if (updatedData.getWorker() != null) {
             int workerId = updatedData.getWorker().getId();
@@ -62,18 +70,18 @@ public class TaskService {
             }
         }
 
-        if (updatedData.getStatus() != null) {
-            existingTask.setStatus(updatedData.getStatus());
-        }
-
-        if (updatedData.getPriority() != null) {
-            existingTask.setPriority(updatedData.getPriority());
-        }
-
-        if (updatedData.getDueDate() != null) {
-            existingTask.setDueDate(updatedData.getDueDate());
+        // re-checked unconditionally (not just when the worker changed this request) so a
+        // department change alone can't leave a task assigned to a worker in another department
+        if (existingTask.getWorker() != null) {
+            assertSameDepartment(existingTask, existingTask.getWorker());
         }
 
         return taskRepository.save(existingTask); // ktorý objekt ukladáš?
+    }
+
+    private void assertSameDepartment(Task task, Worker worker) {
+        if (task.getDepartment() != worker.getDepartment()) {
+            throw new IllegalArgumentException("Task department must match the assigned worker's department");
+        }
     }
 }

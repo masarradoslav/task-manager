@@ -33,7 +33,7 @@ public class WorkerController {
 
     @PostMapping
     public WorkerResponse createWorker(@Valid @RequestBody WorkerRequest request){
-        Worker saved = workerService.createWorker(new Worker(request.name()), request.taskIds());
+        Worker saved = workerService.createWorker(toEntity(request), request.taskIds());
         return WorkerResponse.from(saved);
     }
 
@@ -45,8 +45,14 @@ public class WorkerController {
 
     @PutMapping("/{id}")
     public WorkerResponse updateWorker(@PathVariable int id, @Valid @RequestBody WorkerRequest request){
-        Worker updated = workerService.updateWorker(id, new Worker(request.name()), request.taskIds());
+        Worker updated = workerService.updateWorker(id, toEntity(request), request.taskIds());
         return WorkerResponse.from(updated);
+    }
+
+    private Worker toEntity(WorkerRequest request) {
+        Worker worker = new Worker(request.name());
+        worker.setDepartment(request.department());
+        return worker;
     }
 
 }

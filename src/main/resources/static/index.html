@@ -351,9 +351,21 @@
       <h2>Existing workers</h2>
       <button id="addWorkerBtn">+ Add worker</button>
     </div>
+    <div class="filters">
+      <div class="filter-field">
+        <label>Department</label>
+        <select id="filterWorkerDepartment">
+          <option value="">All</option>
+          <option value="IT">IT</option>
+          <option value="HR">HR</option>
+          <option value="ACCOUNTING">ACCOUNTING</option>
+        </select>
+      </div>
+      <button class="secondary" id="filterWorkerClearBtn">Clear filters</button>
+    </div>
     <table id="workersTable">
       <thead>
-        <tr><th>ID</th><th>Name</th><th>Tasks</th><th></th></tr>
+        <tr><th>ID</th><th>Name</th><th>Department</th><th>Tasks</th><th></th></tr>
       </thead>
       <tbody id="workersTbody"></tbody>
     </table>
@@ -385,6 +397,15 @@
           <option value="DONE">DONE</option>
         </select>
       </div>
+      <div class="filter-field">
+        <label>Department</label>
+        <select id="filterDepartment">
+          <option value="">All</option>
+          <option value="IT">IT</option>
+          <option value="HR">HR</option>
+          <option value="ACCOUNTING">ACCOUNTING</option>
+        </select>
+      </div>
       <div class="filter-field checkbox-field">
         <label><input type="checkbox" id="filterOverdue"> Overdue only</label>
       </div>
@@ -392,7 +413,7 @@
     </div>
     <table id="tasksTable">
       <thead>
-        <tr><th>ID</th><th>Name</th><th>Status</th><th>Priority</th><th>Due date</th><th>Worker</th><th></th></tr>
+        <tr><th>ID</th><th>Name</th><th>Status</th><th>Priority</th><th>Department</th><th>Due date</th><th>Worker</th><th></th></tr>
       </thead>
       <tbody id="tasksTbody"></tbody>
     </table>
@@ -408,6 +429,14 @@
     <div class="field">
       <label>Name *</label>
       <input type="text" id="workerNameInput" placeholder="e.g. Ján Novák">
+    </div>
+    <div class="field">
+      <label>Department *</label>
+      <select id="workerDepartmentInput">
+        <option value="IT">IT</option>
+        <option value="HR">HR</option>
+        <option value="ACCOUNTING">ACCOUNTING</option>
+      </select>
     </div>
     <div class="field" id="workerTasksField">
       <label>Assign tasks (optional)</label>
@@ -443,6 +472,14 @@
         <option value="LOW">LOW</option>
         <option value="MEDIUM">MEDIUM</option>
         <option value="HIGH">HIGH</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Department *</label>
+      <select id="taskDepartmentInput">
+        <option value="IT">IT</option>
+        <option value="HR">HR</option>
+        <option value="ACCOUNTING">ACCOUNTING</option>
       </select>
     </div>
     <div class="field">
@@ -545,13 +582,33 @@ async function loadAll() {
   }
 }
 
+// ---------- Worker filters ----------
+function getFilteredWorkers() {
+  const department = document.getElementById('filterWorkerDepartment').value;
+
+  return workers.filter(w => {
+    if (department && w.department !== department) return false;
+    return true;
+  });
+}
+
 // ---------- Render workers ----------
 function renderWorkers() {
   const tbody = document.getElementById('workersTbody');
   tbody.innerHTML = '';
-  document.getElementById('workersEmpty').style.display = workers.length ? 'none' : 'block';
+  const filtered = getFilteredWorkers();
+  const emptyEl = document.getElementById('workersEmpty');
+  if (!workers.length) {
+    emptyEl.textContent = 'No workers yet. Add the first one.';
+    emptyEl.style.display = 'block';
+  } else if (!filtered.length) {
+    emptyEl.textContent = 'No workers match the selected filters.';
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+  }
 
-  workers.forEach(w => {
+  filtered.forEach(w => {
     const workerTasks = tasks.filter(t => t.workerId === w.id);
     const tasksText = workerTasks.length
             ? workerTasks.map(t => t.name).join(', ')
@@ -561,6 +618,7 @@ function renderWorkers() {
     tr.innerHTML = `
       <td>${w.id}</td>
       <td>${escapeHtml(w.name)}</td>
+      <td>${escapeHtml(w.department || '—')}</td>
       <td>${escapeHtml(tasksText)}</td>
       <td class="row-actions">
         <button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>
@@ -574,11 +632,13 @@ function renderWorkers() {
 function getFilteredTasks() {
   const priority = document.getElementById('filterPriority').value;
   const status = document.getElementById('filterStatus').value;
+  const department = document.getElementById('filterDepartment').value;
   const overdueOnly = document.getElementById('filterOverdue').checked;
 
   return tasks.filter(t => {
     if (priority && (t.priority || 'MEDIUM') !== priority) return false;
     if (status && (t.status || 'TODO') !== status) return false;
+    if (department && t.department !== department) return false;
     if (overdueOnly && !isOverdue(t)) return false;
     return true;
   });
@@ -612,6 +672,7 @@ function renderTasks() {
       <td>${escapeHtml(t.name)}</td>
       <td><span class="status-badge status-${status}">${status}</span></td>
       <td><span class="priority-badge priority-${priority}">${priority}</span></td>
+      <td>${escapeHtml(t.department || '—')}</td>
       <td>${escapeHtml(dueDateText)}${overdue ? ' <span class="overdue-badge">OVERDUE</span>' : ''}</td>
       <td>${escapeHtml(workerName)}</td>
       <td class="row-actions">
@@ -627,9 +688,10 @@ function isOverdue(t) {
 }
 
 function renderTaskWorkerOptions() {
+  const department = document.getElementById('taskDepartmentInput').value;
   const select = document.getElementById('taskWorkerInput');
   select.innerHTML = '<option value="">— none —</option>';
-  workers.forEach(w => {
+  workers.filter(w => w.department === department).forEach(w => {
     const opt = document.createElement('option');
     opt.value = w.id;
     opt.textContent = w.name;
@@ -647,14 +709,16 @@ document.getElementById('addWorkerBtn').addEventListener('click', () => openWork
 document.getElementById('workerCancelBtn').addEventListener('click', () => closeWorkerModal());
 
 function renderWorkerTaskOptions(assignedIds) {
+  const department = document.getElementById('workerDepartmentInput').value;
   const selected = assignedIds || new Set();
   const container = document.getElementById('workerTasksInput');
   container.innerHTML = '';
-  if (!tasks.length) {
-    container.innerHTML = '<div class="empty-hint">No tasks available.</div>';
+  const matching = tasks.filter(t => t.department === department);
+  if (!matching.length) {
+    container.innerHTML = '<div class="empty-hint">No tasks in this department.</div>';
     return;
   }
-  tasks.forEach(t => {
+  matching.forEach(t => {
     const label = document.createElement('label');
     label.className = 'checkbox-option';
     const checked = selected.has(t.id) ? ' checked' : '';
@@ -662,11 +726,19 @@ function renderWorkerTaskOptions(assignedIds) {
     container.appendChild(label);
   });
 }
+document.getElementById('workerDepartmentInput').addEventListener('change', () => {
+  const department = document.getElementById('workerDepartmentInput').value;
+  const assignedIds = editingWorkerId
+    ? new Set(tasks.filter(t => t.workerId === editingWorkerId && t.department === department).map(t => t.id))
+    : new Set();
+  renderWorkerTaskOptions(assignedIds);
+});
 function openWorkerModal() {
   editingWorkerId = null;
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Add worker';
   document.getElementById('workerNameInput').value = '';
+  document.getElementById('workerDepartmentInput').value = 'IT';
   renderWorkerTaskOptions();
   document.getElementById('workerModal').classList.add('active');
 }
@@ -677,6 +749,7 @@ function openEditWorker(id) {
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
+  document.getElementById('workerDepartmentInput').value = w.department || 'IT';
   const assignedIds = new Set(tasks.filter(t => t.workerId === w.id).map(t => t.id));
   renderWorkerTaskOptions(assignedIds);
   document.getElementById('workerModal').classList.add('active');
@@ -686,17 +759,22 @@ function closeWorkerModal() {
 }
 document.getElementById('workerSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('workerNameInput').value.trim();
+  const department = document.getElementById('workerDepartmentInput').value;
   clearError('workerModalError');
   if (!name) {
     showError('Name is required', 'workerModalError');
     return;
   }
+  if (!department) {
+    showError('Department is required', 'workerModalError');
+    return;
+  }
   const taskIds = Array.from(document.getElementById('workerTasksInput').querySelectorAll('input:checked')).map(cb => Number(cb.value));
   try {
     if (editingWorkerId) {
-      await apiPut('/workers/' + editingWorkerId, { name, taskIds });
+      await apiPut('/workers/' + editingWorkerId, { name, department, taskIds });
     } else {
-      await apiPost('/workers', { name, taskIds });
+      await apiPost('/workers', { name, department, taskIds });
     }
     closeWorkerModal();
     await loadAll();
@@ -715,13 +793,22 @@ async function deleteWorker(id) {
   }
 }
 
+// ---------- Worker filters ----------
+document.getElementById('filterWorkerDepartment').addEventListener('change', renderWorkers);
+document.getElementById('filterWorkerClearBtn').addEventListener('click', () => {
+  document.getElementById('filterWorkerDepartment').value = '';
+  renderWorkers();
+});
+
 // ---------- Task filters ----------
 document.getElementById('filterPriority').addEventListener('change', renderTasks);
 document.getElementById('filterStatus').addEventListener('change', renderTasks);
+document.getElementById('filterDepartment').addEventListener('change', renderTasks);
 document.getElementById('filterOverdue').addEventListener('change', renderTasks);
 document.getElementById('filterClearBtn').addEventListener('click', () => {
   document.getElementById('filterPriority').value = '';
   document.getElementById('filterStatus').value = '';
+  document.getElementById('filterDepartment').value = '';
   document.getElementById('filterOverdue').checked = false;
   renderTasks();
 });
@@ -735,6 +822,10 @@ function localDateTimeInputValue(date) {
   return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
     + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 }
+document.getElementById('taskDepartmentInput').addEventListener('change', () => {
+  renderTaskWorkerOptions();
+  document.getElementById('taskWorkerInput').value = '';
+});
 function openTaskModal() {
   editingTaskId = null;
   clearError('taskModalError');
@@ -742,9 +833,11 @@ function openTaskModal() {
   document.getElementById('taskNameInput').value = '';
   document.getElementById('taskStatusInput').value = 'TODO';
   document.getElementById('taskPriorityInput').value = 'MEDIUM';
+  document.getElementById('taskDepartmentInput').value = 'IT';
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = '';
   dueDateInput.min = localDateTimeInputValue(new Date());
+  renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = '';
   document.getElementById('taskModal').classList.add('active');
 }
@@ -757,9 +850,11 @@ function openEditTask(id) {
   document.getElementById('taskNameInput').value = t.name;
   document.getElementById('taskStatusInput').value = t.status || 'TODO';
   document.getElementById('taskPriorityInput').value = t.priority || 'MEDIUM';
+  document.getElementById('taskDepartmentInput').value = t.department || 'IT';
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = t.dueDate ? t.dueDate.slice(0, 16) : '';
   dueDateInput.min = localDateTimeInputValue(new Date());
+  renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = t.workerId ? t.workerId : '';
   document.getElementById('taskModal').classList.add('active');
 }
@@ -770,6 +865,7 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('taskNameInput').value.trim();
   const status = document.getElementById('taskStatusInput').value;
   const priority = document.getElementById('taskPriorityInput').value;
+  const department = document.getElementById('taskDepartmentInput').value;
   const dueDate = document.getElementById('taskDueDateInput').value;
   const workerId = document.getElementById('taskWorkerInput').value;
 
@@ -786,6 +882,10 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     showError('Priority is required', 'taskModalError');
     return;
   }
+  if (!department) {
+    showError('Department is required', 'taskModalError');
+    return;
+  }
   if (!dueDate) {
     showError('Due date is required', 'taskModalError');
     return;
@@ -795,7 +895,7 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     return;
   }
 
-  const body = { name, status, priority, dueDate };
+  const body = { name, status, priority, dueDate, department };
   if (workerId) body.workerId = Number(workerId);
 
   try {

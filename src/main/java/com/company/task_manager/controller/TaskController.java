@@ -55,6 +55,7 @@ public class TaskController {
         task.setStatus(request.status());
         task.setPriority(request.priority());
         task.setDueDate(request.dueDate());
+        task.setDepartment(request.department());
         if (request.workerId() != null) {
             task.setWorker(new Worker(request.workerId()));
         }
