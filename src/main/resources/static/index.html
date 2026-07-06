@@ -359,6 +359,7 @@
 <div class="overlay" id="workerModal">
   <div class="modal">
     <h3 id="workerModalTitle">Add worker</h3>
+    <div class="error-box" id="workerModalError"></div>
     <div class="field">
       <label>Name *</label>
       <input type="text" id="workerNameInput" placeholder="e.g. Ján Novák">
@@ -378,6 +379,7 @@
 <div class="overlay" id="taskModal">
   <div class="modal">
     <h3 id="taskModalTitle">Add task</h3>
+    <div class="error-box" id="taskModalError"></div>
     <div class="field">
       <label>Name *</label>
       <input type="text" id="taskNameInput" placeholder="e.g. Naprogramovať API">
@@ -433,13 +435,13 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 // ---------- Error handling ----------
-function showError(message) {
-  const box = document.getElementById('errorBox');
+function showError(message, boxId = 'errorBox') {
+  const box = document.getElementById(boxId);
   box.textContent = message;
   box.classList.add('active');
 }
-function clearError() {
-  document.getElementById('errorBox').classList.remove('active');
+function clearError(boxId = 'errorBox') {
+  document.getElementById(boxId).classList.remove('active');
 }
 
 // ---------- API helpers ----------
@@ -611,6 +613,7 @@ function renderWorkerTaskOptions() {
 }
 function openWorkerModal() {
   editingWorkerId = null;
+  clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Add worker';
   document.getElementById('workerNameInput').value = '';
   renderWorkerTaskOptions();
@@ -621,6 +624,7 @@ function openEditWorker(id) {
   const w = workers.find(w => w.id === id);
   if (!w) return;
   editingWorkerId = id;
+  clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
   document.getElementById('workerTasksField').style.display = 'none';
@@ -631,9 +635,9 @@ function closeWorkerModal() {
 }
 document.getElementById('workerSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('workerNameInput').value.trim();
-  clearError();
+  clearError('workerModalError');
   if (!name) {
-    showError('Name is required');
+    showError('Name is required', 'workerModalError');
     return;
   }
   try {
@@ -646,7 +650,7 @@ document.getElementById('workerSaveBtn').addEventListener('click', async () => {
     closeWorkerModal();
     await loadAll();
   } catch (e) {
-    showError('Could not save worker (' + e.message + ')');
+    showError('Could not save worker (' + e.message + ')', 'workerModalError');
   }
 });
 async function deleteWorker(id) {
@@ -682,6 +686,7 @@ function localDateTimeInputValue(date) {
 }
 function openTaskModal() {
   editingTaskId = null;
+  clearError('taskModalError');
   document.getElementById('taskModalTitle').textContent = 'Add task';
   document.getElementById('taskNameInput').value = '';
   document.getElementById('taskStatusInput').value = 'TODO';
@@ -696,6 +701,7 @@ function openEditTask(id) {
   const t = tasks.find(t => t.id === id);
   if (!t) return;
   editingTaskId = id;
+  clearError('taskModalError');
   document.getElementById('taskModalTitle').textContent = 'Edit task';
   document.getElementById('taskNameInput').value = t.name;
   document.getElementById('taskStatusInput').value = t.status || 'TODO';
@@ -716,25 +722,25 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
   const dueDate = document.getElementById('taskDueDateInput').value;
   const workerId = document.getElementById('taskWorkerInput').value;
 
-  clearError();
+  clearError('taskModalError');
   if (!name) {
-    showError('Name is required');
+    showError('Name is required', 'taskModalError');
     return;
   }
   if (!status) {
-    showError('Status is required');
+    showError('Status is required', 'taskModalError');
     return;
   }
   if (!priority) {
-    showError('Priority is required');
+    showError('Priority is required', 'taskModalError');
     return;
   }
   if (!dueDate) {
-    showError('Due date is required');
+    showError('Due date is required', 'taskModalError');
     return;
   }
   if (new Date(dueDate).getTime() <= Date.now()) {
-    showError('Due date must be in the future');
+    showError('Due date must be in the future', 'taskModalError');
     return;
   }
 
@@ -750,7 +756,7 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     closeTaskModal();
     await loadAll();
   } catch (e) {
-    showError('Could not save task (' + e.message + ')');
+    showError('Could not save task (' + e.message + ')', 'taskModalError');
   }
 });
 async function deleteTask(id) {
