@@ -501,7 +501,7 @@ function renderWorkers() {
   document.getElementById('workersEmpty').style.display = workers.length ? 'none' : 'block';
 
   workers.forEach(w => {
-    const workerTasks = tasks.filter(t => t.worker && t.worker.id === w.id);
+    const workerTasks = tasks.filter(t => t.workerId === w.id);
     const tasksText = workerTasks.length
             ? workerTasks.map(t => t.name).join(', ')
             : '—';
@@ -550,7 +550,7 @@ function renderTasks() {
   }
 
   filtered.forEach(t => {
-    const workerName = t.worker ? (workers.find(w => w.id === t.worker.id)?.name || t.worker.name || ('#' + t.worker.id)) : '—';
+    const workerName = t.workerId ? (workers.find(w => w.id === t.workerId)?.name || t.workerName || ('#' + t.workerId)) : '—';
     const status = t.status || 'TODO';
     const priority = t.priority || 'MEDIUM';
     const overdue = isOverdue(t);
@@ -682,7 +682,7 @@ function openEditTask(id) {
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = t.dueDate ? t.dueDate.slice(0, 16) : '';
   dueDateInput.min = localDateTimeInputValue(new Date());
-  document.getElementById('taskWorkerInput').value = t.worker ? t.worker.id : '';
+  document.getElementById('taskWorkerInput').value = t.workerId ? t.workerId : '';
   document.getElementById('taskModal').classList.add('active');
 }
 function closeTaskModal() {
@@ -704,7 +704,7 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
 
   const body = { name, status, priority };
   if (dueDate) body.dueDate = dueDate;
-  if (workerId) body.worker = { id: Number(workerId) };
+  if (workerId) body.workerId = Number(workerId);
 
   try {
     if (editingTaskId) {

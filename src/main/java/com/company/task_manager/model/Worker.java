@@ -9,7 +9,6 @@ import jakarta.persistence.CascadeType;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 @Entity
 public class Worker {
 
@@ -20,8 +19,9 @@ public class Worker {
     private String name;
 
     // mappedBy = "worker" znamená, že vlastníkom vzťahu je pole "worker" v triede Task
+    // Entita sa už priamo neserializuje (controllery vracajú WorkerResponse DTO), takže
+    // netreba @JsonIgnore na predídenie nekonečnej rekurzii Worker -> tasks -> Task -> worker ...
     @OneToMany(mappedBy = "worker", cascade = CascadeType.ALL)
-    @JsonIgnore
     private Collection<Task> tasks;
 
     // Bezparametrický konštruktor - JPA ho vyžaduje

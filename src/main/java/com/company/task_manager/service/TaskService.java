@@ -35,6 +35,12 @@ public class TaskService {
 
     public Task createTask(Task task){
         validateDueDate(task.getDueDate());
+
+        if (task.getWorker() != null) {
+            Optional<Worker> workerOpt = workerRepository.findById(task.getWorker().getId());
+            task.setWorker(workerOpt.orElse(null));
+        }
+
         return taskRepository.save(task);
     }
 

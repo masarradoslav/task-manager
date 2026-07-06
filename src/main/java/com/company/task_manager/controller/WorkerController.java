@@ -1,5 +1,7 @@
 package com.company.task_manager.controller;
 
+import com.company.task_manager.dto.WorkerRequest;
+import com.company.task_manager.dto.WorkerResponse;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.service.WorkerService;
 import org.springframework.http.ResponseEntity;
@@ -19,20 +21,20 @@ public class WorkerController {
     }
 
     @GetMapping
-    public Collection<Worker> getAllWorkers(){
-        return workerService.getAllWorkers();
+    public Collection<WorkerResponse> getAllWorkers(){
+        return workerService.getAllWorkers().stream().map(WorkerResponse::from).toList();
     }
 
 
     @GetMapping("/{id}")
-    public Optional<Worker> getWorkerById(@PathVariable int id){
-        return workerService.findById(id);
+    public Optional<WorkerResponse> getWorkerById(@PathVariable int id){
+        return workerService.findById(id).map(WorkerResponse::from);
     }
 
     @PostMapping
-    public Worker createWorker(@RequestBody Worker worker){
-        Worker w = workerService.createWorker(worker);
-        return w;
+    public WorkerResponse createWorker(@RequestBody WorkerRequest request){
+        Worker saved = workerService.createWorker(new Worker(request.name()));
+        return WorkerResponse.from(saved);
     }
 
     @DeleteMapping("/{id}")
@@ -42,8 +44,9 @@ public class WorkerController {
     }
 
     @PutMapping("/{id}")
-    public Worker updateWorker(@PathVariable int id, @RequestBody Worker updatedData){
-        return workerService.updateWorker(id, updatedData);
+    public WorkerResponse updateWorker(@PathVariable int id, @RequestBody WorkerRequest request){
+        Worker updated = workerService.updateWorker(id, new Worker(request.name()));
+        return updated != null ? WorkerResponse.from(updated) : null;
     }
 
 }
