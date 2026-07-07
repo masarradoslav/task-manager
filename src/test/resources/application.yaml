@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: task_manager
+  # Test-only config: overrides src/main/resources/application.yaml when running the test
+  # suite (test resources take precedence on the classpath). Tests run against a throwaway
+  # in-memory H2 database, so they need neither the Docker Postgres nor any env vars.
+  datasource:
+    url: jdbc:h2:mem:taskdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true

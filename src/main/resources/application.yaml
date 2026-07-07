@@ -2,16 +2,21 @@ spring:
   application:
     name: task_manager
   datasource:
-    url: jdbc:h2:mem:taskdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  h2:
-    console:
-      enabled: true
+    # ${ENV_VAR:default} - uses the environment variable when present (e.g. on Railway),
+    # otherwise falls back to the local Docker Postgres, so local dev needs no env vars set.
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/taskdb}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
   jpa:
     hibernate:
+      # Hibernate still derives/updates the schema from the entities automatically.
       ddl-auto: update
+    properties:
+      hibernate:
+        # Postgres dialect. Hibernate can auto-detect this from the driver, but it's set
+        # explicitly so the target database is unambiguous.
+        dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
 
 server:
