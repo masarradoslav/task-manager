@@ -19,6 +19,7 @@ public record TaskResponse(
         Integer workerId,
         String workerName
 ) {
+    // Builds a response DTO from a Task entity, flattening the worker to id/name only.
     public static TaskResponse from(Task task) {
         return new TaskResponse(
                 task.getId(),

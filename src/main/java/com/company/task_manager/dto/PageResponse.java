@@ -13,6 +13,7 @@ public record PageResponse<T>(
         long totalElements,
         int totalPages
 ) {
+    // Wraps a Spring Data Page into a stable, serialization-independent JSON shape.
     public static <T> PageResponse<T> from(Page<T> page) {
         return new PageResponse<>(
                 page.getContent(),

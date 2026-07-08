@@ -11,19 +11,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
 
+// Maps service-layer exceptions to short plain-text HTTP error responses.
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // Business-rule violations (duplicate username, missing password, ...) -> 400.
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(ex.getMessage());
     }
 
+    // Unknown task/worker ids -> 404.
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<String> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
 
+    // Role/department authorization failures -> 403.
     @ExceptionHandler(ForbiddenOperationException.class)
     public ResponseEntity<String> handleForbidden(ForbiddenOperationException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
@@ -36,6 +40,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body("The change conflicts with existing data (e.g. a username that is already taken)");
     }
 
+    // Bean Validation failures on request DTOs -> 400 listing each offending field.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<String> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()

@@ -15,6 +15,7 @@ import java.io.IOException;
 // XSRF-TOKEN cookie to be written without this filter forcing that resolution on every request.
 public class CsrfCookieFilter extends OncePerRequestFilter {
 
+    // Touches the deferred CsrfToken on every request so the XSRF-TOKEN cookie gets written.
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {

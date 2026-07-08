@@ -34,6 +34,7 @@ public class TaskService {
         this.workerRepository = workerRepository;
     }
 
+    // Returns a filtered page of tasks; non-admins are always scoped to their own department.
     public Page<Task> getTasks(int page, int size, TaskStatus status, TaskPriority priority,
                                 Department department, Boolean overdueOnly, Integer workerId,
                                 AppUserPrincipal principal){
@@ -47,6 +48,7 @@ public class TaskService {
         return taskRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
+    // Combines the optional list filters (status/priority/department/assignee/overdue) into one query.
     private Specification<Task> buildFilter(TaskStatus status, TaskPriority priority,
                                              Department department, Boolean overdueOnly, Integer workerId){
         return (root, query, cb) -> {
@@ -63,6 +65,7 @@ public class TaskService {
         };
     }
 
+    // Loads one task, allowing non-admins to see only their own department's tasks.
     public Task findById(int id, AppUserPrincipal principal){
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
@@ -70,6 +73,7 @@ public class TaskService {
         return task;
     }
 
+    // Deletes a task if the principal manages its department.
     public void deleteTask(int id, AppUserPrincipal principal){
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
@@ -77,6 +81,8 @@ public class TaskService {
         taskRepository.delete(task);
     }
 
+    // Creates a task, optionally assigned to a worker. Employees can't create tasks;
+    // managers only in their own department.
     public Task createTask(Task task, AppUserPrincipal principal){
         if (principal.isEmployee()) {
             throw new ForbiddenOperationException("Employees cannot create tasks");
@@ -98,6 +104,8 @@ public class TaskService {
     }
 
 
+    // Replaces a task's state with the incoming full representation (Admin/Manager only,
+    // managers scoped to their department).
     public Task updateTask(int id, Task updatedData, AppUserPrincipal principal){
         Task existingTask = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
@@ -163,18 +171,21 @@ public class TaskService {
         return taskRepository.save(task);
     }
 
+    // Non-admins may only view tasks of their own department.
     private void assertCanView(Task task, AppUserPrincipal principal) {
         if (!principal.isAdmin() && task.getDepartment() != principal.getDepartment()) {
             throw new ForbiddenOperationException("You cannot view tasks from another department");
         }
     }
 
+    // Admin manages every task; a manager only those of their own department.
     private void assertCanManage(Task task, AppUserPrincipal principal) {
         if (principal.isAdmin()) return;
         if (principal.isManager() && task.getDepartment() == principal.getDepartment()) return;
         throw new ForbiddenOperationException("You are not allowed to manage this task");
     }
 
+    // A task may only ever be assigned to a worker of the same department.
     private void assertSameDepartment(Task task, Worker worker) {
         if (task.getDepartment() != worker.getDepartment()) {
             throw new IllegalArgumentException("Task department must match the assigned worker's department");

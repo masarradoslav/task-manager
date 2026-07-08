@@ -7,6 +7,7 @@ import com.company.task_manager.model.WorkerType;
 
 // Never includes the password hash. workerType is derived from the actual Java subtype.
 public record WorkerResponse(int id, String name, Department department, String username, WorkerType workerType) {
+    // Builds a response DTO from a Worker entity, deriving workerType from the Java subtype.
     public static WorkerResponse from(Worker worker) {
         WorkerType type = worker instanceof Manager ? WorkerType.MANAGER : WorkerType.EMPLOYEE;
         return new WorkerResponse(worker.getId(), worker.getName(), worker.getDepartment(), worker.getUsername(), type);

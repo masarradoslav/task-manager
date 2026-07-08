@@ -7,5 +7,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ManagerRepository extends JpaRepository<Manager, Integer> {
+    // True if the given department already has a manager (one-manager-per-department rule).
     boolean existsByDepartment(Department department);
 }

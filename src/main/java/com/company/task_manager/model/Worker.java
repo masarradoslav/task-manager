@@ -56,68 +56,85 @@ public class Worker {
     private Collection<Task> tasks;
 
     // Bezparametrický konštruktor - JPA ho vyžaduje
+    // No-arg constructor required by JPA.
     public Worker() {
         this.tasks = new HashSet<>();
     }
 
+    // Creates a placeholder with only the id set, used to reference an existing worker before
+    // the service layer resolves it to a real entity.
     public Worker(int id) {
         this.id = id;
     }
 
+    // Creates a worker with just a name (department/username/password set separately).
     public Worker(String name) {
         this.name = name;
         this.tasks = new HashSet<>();
     }
 
+    // Returns the worker's id.
     public int getId() {
         return id;
     }
 
+    // Returns the worker's name.
     public String getName() {
         return name;
     }
 
+    // Sets the worker's name.
     public void setName(String name) {
         this.name = name;
     }
 
+    // Returns the worker's login username.
     public String getUsername() {
         return username;
     }
 
+    // Sets the worker's login username.
     public void setUsername(String username) {
         this.username = username;
     }
 
+    // Returns the worker's BCrypt password hash.
     public String getPassword() {
         return password;
     }
 
+    // Sets the worker's BCrypt password hash.
     public void setPassword(String password) {
         this.password = password;
     }
 
+    // Returns the worker's department.
     public Department getDepartment() {
         return department;
     }
 
+    // Sets the worker's department.
     public void setDepartment(Department department) {
         this.department = department;
     }
 
+    // Returns the tasks assigned to this worker.
     public Collection<Task> getTasks() {
         return tasks;
     }
 
+    // Replaces the worker's task collection.
     public void setTasks(Collection<Task> tasks) {
         this.tasks = tasks;
     }
 
+    // Assigns a task to this worker, keeping both sides of the relationship in sync.
     public void addTask(Task task) {
         this.tasks.add(task);
         task.setWorker(this); // dôležité - udržuje konzistenciu vzťahu na oboch stranách
     }
 
+    // Equal when id and name both match.
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -125,6 +142,7 @@ public class Worker {
         return id == worker.id && Objects.equals(name, worker.name);
     }
 
+    // Hash based on id and name, consistent with equals.
     @Override
     public int hashCode() {
         return Objects.hash(id, name);

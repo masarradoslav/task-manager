@@ -19,6 +19,7 @@ public class AdminAccountSeeder implements CommandLineRunner {
         this.passwordEncoder = passwordEncoder;
     }
 
+    // Creates the admin/admin account at startup unless it already exists.
     @Override
     public void run(String... args) {
         if (adminAccountRepository.findByUsername("admin").isEmpty()) {

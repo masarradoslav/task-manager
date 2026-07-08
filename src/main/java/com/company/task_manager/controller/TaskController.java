@@ -26,6 +26,7 @@ public class TaskController {
         this.taskService = taskService;
     }
 
+    // GET /tasks - paginated task list with optional filters.
     @GetMapping
     public PageResponse<TaskResponse> getAllTasks(
             @RequestParam(defaultValue = "0") int page,
@@ -41,17 +42,20 @@ public class TaskController {
         return PageResponse.from(result.map(TaskResponse::from));
     }
 
+    // GET /tasks/{id} - one task by id.
     @GetMapping("/{id}")
     public TaskResponse getTaskById(@PathVariable int id, @AuthenticationPrincipal AppUserPrincipal principal){
         return TaskResponse.from(taskService.findById(id, principal));
     }
 
+    // POST /tasks - create a task (optionally assigned via workerId).
     @PostMapping
     public TaskResponse createTask(@Valid @RequestBody TaskRequest request, @AuthenticationPrincipal AppUserPrincipal principal){
         Task saved = taskService.createTask(toEntity(request), principal);
         return TaskResponse.from(saved);
     }
 
+    // PUT /tasks/{id} - replace a task's state (workerId null = unassign).
     @PutMapping("/{id}")
     public TaskResponse updateTask(@PathVariable int id, @Valid @RequestBody TaskRequest request,
                                     @AuthenticationPrincipal AppUserPrincipal principal){
@@ -59,6 +63,7 @@ public class TaskController {
         return TaskResponse.from(updated);
     }
 
+    // PATCH /tasks/{id}/status - status-only update (the one edit employees may make).
     @PatchMapping("/{id}/status")
     public TaskResponse updateTaskStatus(@PathVariable int id, @Valid @RequestBody TaskStatusUpdateRequest request,
                                           @AuthenticationPrincipal AppUserPrincipal principal){
@@ -66,12 +71,14 @@ public class TaskController {
         return TaskResponse.from(updated);
     }
 
+    // DELETE /tasks/{id} - remove a task.
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable int id, @AuthenticationPrincipal AppUserPrincipal principal){
         taskService.deleteTask(id, principal);
         return ResponseEntity.noContent().build();
     }
 
+    // Maps the request DTO to a Task entity (worker carried as an id-only stub).
     private Task toEntity(TaskRequest request) {
         Task task = new Task();
         task.setName(request.name());

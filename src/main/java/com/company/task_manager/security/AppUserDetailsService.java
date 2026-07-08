@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+// Bridges Spring Security's login to this app's two account tables (admin + workers).
 @Service
 public class AppUserDetailsService implements UserDetailsService {
 
@@ -18,6 +19,7 @@ public class AppUserDetailsService implements UserDetailsService {
         this.workerRepository = workerRepository;
     }
 
+    // Resolves a login username to a principal - admin account first, then workers.
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         return adminAccountRepository.findByUsername(username)

@@ -8,10 +8,12 @@ import jakarta.persistence.Entity;
 @DiscriminatorValue("MANAGER")
 public class Manager extends Worker {
 
+    // No-arg constructor required by JPA.
     public Manager() {
         super();
     }
 
+    // Creates a manager with the given name.
     public Manager(String name) {
         super(name);
     }

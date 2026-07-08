@@ -9,6 +9,8 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
+// Incoming payload for creating/updating a task. All fields are required except workerId:
+// on a PUT it carries the full desired assignment - an id (re)assigns, null/absent unassigns.
 public record TaskRequest(
         @NotBlank(message = "Name must not be blank")
         String name,

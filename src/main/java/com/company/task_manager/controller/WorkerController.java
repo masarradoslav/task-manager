@@ -22,6 +22,7 @@ public class WorkerController {
         this.workerService = workerService;
     }
 
+    // GET /workers - paginated worker list with optional department filter.
     @GetMapping
     public PageResponse<WorkerResponse> getAllWorkers(
             @RequestParam(defaultValue = "0") int page,
@@ -34,11 +35,13 @@ public class WorkerController {
     }
 
 
+    // GET /workers/{id} - one worker by id.
     @GetMapping("/{id}")
     public WorkerResponse getWorkerById(@PathVariable int id, @AuthenticationPrincipal AppUserPrincipal principal){
         return WorkerResponse.from(workerService.findById(id, principal));
     }
 
+    // POST /workers - create a worker (Manager or RegularEmployee).
     @PostMapping
     public WorkerResponse createWorker(@Valid @RequestBody WorkerRequest request,
                                         @AuthenticationPrincipal AppUserPrincipal principal){
@@ -47,12 +50,14 @@ public class WorkerController {
         return WorkerResponse.from(saved);
     }
 
+    // DELETE /workers/{id} - remove a worker.
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteWorker(@PathVariable int id, @AuthenticationPrincipal AppUserPrincipal principal){
         workerService.deleteWorker(id, principal);
         return ResponseEntity.noContent().build();
     }
 
+    // PUT /workers/{id} - edit a worker (restricted to name/username/password when self-editing).
     @PutMapping("/{id}")
     public WorkerResponse updateWorker(@PathVariable int id, @Valid @RequestBody WorkerRequest request,
                                         @AuthenticationPrincipal AppUserPrincipal principal){

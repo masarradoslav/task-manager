@@ -27,11 +27,13 @@ public class AuthController {
         this.adminAccountService = adminAccountService;
     }
 
+    // GET /auth/me - who am I (username, role, department, ...) for the logged-in session.
     @GetMapping("/me")
     public CurrentUserResponse me(@AuthenticationPrincipal AppUserPrincipal principal) {
         return CurrentUserResponse.from(principal);
     }
 
+    // PUT /auth/me - the Admin's self-edit (username + optional new password).
     @PutMapping("/me")
     public AdminAccountResponse updateMe(@Valid @RequestBody AdminAccountRequest request,
                                           @AuthenticationPrincipal AppUserPrincipal principal) {

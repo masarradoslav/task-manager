@@ -10,6 +10,7 @@ public record CurrentUserResponse(
         String name,
         Department department
 ) {
+    // Builds the "who am I" response DTO from the authenticated principal.
     public static CurrentUserResponse from(AppUserPrincipal principal) {
         return new CurrentUserResponse(
                 principal.getUsername(),

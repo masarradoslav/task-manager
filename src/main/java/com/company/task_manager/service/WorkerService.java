@@ -47,6 +47,7 @@ public class WorkerService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    // Returns a page of workers; non-admins are always scoped to their own department.
     public Page<Worker> getWorkers(int page, int size, Department department, AppUserPrincipal principal){
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
@@ -62,6 +63,7 @@ public class WorkerService {
         return workerRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
+    // Loads one worker, allowing non-admins to see only their own department.
     public Worker findById(int id, AppUserPrincipal principal){
         Worker worker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
@@ -71,6 +73,8 @@ public class WorkerService {
         return worker;
     }
 
+    // Creates a worker (Manager or RegularEmployee) with optional initial task assignments.
+    // Managers may only create employees in their own department; admins may create anyone.
     @Transactional
     public Worker createWorker(String name, Department department, String username, String password,
                                 WorkerType workerType, List<Integer> taskIds, AppUserPrincipal principal){
@@ -113,6 +117,7 @@ public class WorkerService {
         return savedWorker;
     }
 
+    // Deletes a worker if the principal is allowed to manage them.
     public void deleteWorker(int id, AppUserPrincipal principal){
         Worker worker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
@@ -120,6 +125,8 @@ public class WorkerService {
         workerRepository.delete(worker);
     }
 
+    // Updates a worker: a self-edit may only change name/username/password, a managing
+    // edit may also move departments and replace the full set of assigned tasks.
     @Transactional
     public Worker updateWorker(int id, String name, Department department, String username, String password,
                                 List<Integer> taskIds, AppUserPrincipal principal){
@@ -185,6 +192,7 @@ public class WorkerService {
         return workerRepository.save(existingWorker); // ktorý objekt ukladáš?
     }
 
+    // Admin manages everyone; a manager manages only non-manager workers of their department.
     private void assertCanManage(Worker worker, AppUserPrincipal principal) {
         if (principal.isAdmin()) return;
         if (principal.isManager() && worker.getDepartment() == principal.getDepartment() && !(worker instanceof Manager)) return;
@@ -196,6 +204,7 @@ public class WorkerService {
         return !principal.isAdmin() && principal.getWorkerId() != null && principal.getWorkerId() == worker.getId();
     }
 
+    // A task may only ever be assigned to a worker of the same department.
     private void assertSameDepartment(Worker worker, Task task) {
         if (worker.getDepartment() != task.getDepartment()) {
             throw new IllegalArgumentException("Worker department must match the assigned task's department");

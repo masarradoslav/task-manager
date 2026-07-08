@@ -10,5 +10,6 @@ import java.util.Optional;
 @Repository
 public interface WorkerRepository extends JpaRepository<Worker, Integer>, JpaSpecificationExecutor<Worker> {
 
+    // Looks up a worker by login username, used for authentication.
     Optional<Worker> findByUsername(String username);
 }

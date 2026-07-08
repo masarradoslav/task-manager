@@ -26,11 +26,14 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    // BCrypt hasher used for all stored passwords (admin + workers).
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // Central security setup: CORS, CSRF cookie, session policy, which endpoints are
+    // public vs. authenticated, and the JSON login/logout/error responses.
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

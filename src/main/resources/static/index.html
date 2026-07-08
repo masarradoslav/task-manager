@@ -696,11 +696,13 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 // ---------- Error handling ----------
+// Shows a message in the given error box (page-level box by default).
 function showError(message, boxId = 'errorBox') {
   const box = document.getElementById(boxId);
   box.textContent = message;
   box.classList.add('active');
 }
+// Hides the given error box.
 function clearError(boxId = 'errorBox') {
   document.getElementById(boxId).classList.remove('active');
 }
@@ -708,22 +710,27 @@ function clearError(boxId = 'errorBox') {
 // ---------- Auth / session ----------
 // The session id lives only in an HttpOnly cookie (never a URL), so credentials: 'include'
 // is what carries it - there is no token to copy out of a URL or paste elsewhere.
+// Reads the XSRF-TOKEN cookie so write requests can send it back as a header.
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
+// Switches the page to the login form.
 function showLoginScreen() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appShell').style.display = 'none';
 }
+// Switches the page to the main app UI.
 function showAppShell() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appShell').style.display = 'block';
 }
+// Clears the local session state and returns to the login screen.
 function handleUnauthenticated() {
   currentUser = null;
   showLoginScreen();
 }
+// Shows/hides UI controls based on the logged-in user's role.
 function applyRoleVisibility() {
   const role = currentUser.role;
   const parts = ['Logged in as ' + currentUser.name + ' (' + role + ')'];
@@ -740,6 +747,7 @@ function applyRoleVisibility() {
   // this button is its only way to change username/password.
   document.getElementById('editAdminAccountBtn').style.display = isAdmin ? '' : 'none';
 }
+// Checks for an existing session cookie on page load and enters the app if valid.
 async function bootstrapSession() {
   try {
     const res = await fetch(API_BASE + '/auth/me', { credentials: 'include' });
@@ -793,12 +801,14 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 // ---------- API helpers ----------
+// GET request; returns parsed JSON (or null on 204).
 async function apiGet(path) {
   const res = await fetch(API_BASE + path, { credentials: 'include' });
   if (res.status === 401) handleUnauthenticated();
   if (!res.ok) throw new Error('GET ' + path + ' failed (' + res.status + ')');
   return res.status === 204 ? null : res.json();
 }
+// POST with JSON body + CSRF header; returns parsed JSON.
 async function apiPost(path, body) {
   const res = await fetch(API_BASE + path, {
     method: 'POST',
@@ -810,6 +820,7 @@ async function apiPost(path, body) {
   if (!res.ok) throw new Error(await errorMessage(res, 'POST ' + path));
   return res.status === 204 ? null : res.json();
 }
+// PUT with JSON body + CSRF header; returns parsed JSON.
 async function apiPut(path, body) {
   const res = await fetch(API_BASE + path, {
     method: 'PUT',
@@ -821,6 +832,7 @@ async function apiPut(path, body) {
   if (!res.ok) throw new Error(await errorMessage(res, 'PUT ' + path));
   return res.status === 204 ? null : res.json();
 }
+// PATCH with JSON body + CSRF header; returns parsed JSON.
 async function apiPatch(path, body) {
   const res = await fetch(API_BASE + path, {
     method: 'PATCH',
@@ -832,6 +844,7 @@ async function apiPatch(path, body) {
   if (!res.ok) throw new Error(await errorMessage(res, 'PATCH ' + path));
   return res.status === 204 ? null : res.json();
 }
+// Turns an error response into a short human-readable message for the error boxes.
 async function errorMessage(res, label) {
   let text = await res.text().catch(() => '');
   // If the body is a Spring Boot error JSON, pull out just the human-readable message
@@ -843,6 +856,7 @@ async function errorMessage(res, label) {
   if (text.length > 300) text = text.slice(0, 300) + '…';
   return text || (label + ' failed (' + res.status + ')');
 }
+// DELETE with CSRF header; no response body expected.
 async function apiDelete(path) {
   const res = await fetch(API_BASE + path, {
     method: 'DELETE',
@@ -854,6 +868,7 @@ async function apiDelete(path) {
 }
 
 // ---------- Load data ----------
+// Builds the query string for the workers list (page + optional department filter).
 function buildWorkerQuery() {
   const params = new URLSearchParams();
   params.set('page', workerPage);
@@ -862,6 +877,7 @@ function buildWorkerQuery() {
   if (department) params.set('department', department);
   return params.toString();
 }
+// Builds the query string for the tasks list (page + all active filters).
 function buildTaskQuery() {
   const params = new URLSearchParams();
   params.set('page', taskPage);
@@ -877,18 +893,21 @@ function buildTaskQuery() {
   if (taskWorkerIdFilter != null) params.set('workerId', taskWorkerIdFilter);
   return params.toString();
 }
+// Fetches the current workers page from the API into the local state.
 async function fetchWorkersPage() {
   const result = await apiGet('/workers?' + buildWorkerQuery());
   workers = result.content;
   workerTotalPages = result.totalPages;
   workerTotalElements = result.totalElements;
 }
+// Fetches the current tasks page from the API into the local state.
 async function fetchTasksPage() {
   const result = await apiGet('/tasks?' + buildTaskQuery());
   tasks = result.content;
   taskTotalPages = result.totalPages;
   taskTotalElements = result.totalElements;
 }
+// Loads and renders workers, stepping back a page if the current one became empty.
 async function loadWorkers() {
   await fetchWorkersPage();
   if (!workers.length && workerPage > 0 && workerPage >= workerTotalPages) {
@@ -897,6 +916,7 @@ async function loadWorkers() {
   }
   renderWorkers();
 }
+// Loads and renders tasks, stepping back a page if the current one became empty.
 async function loadTasks() {
   await fetchTasksPage();
   if (!tasks.length && taskPage > 0 && taskPage >= taskTotalPages) {
@@ -905,6 +925,7 @@ async function loadTasks() {
   }
   renderTasks();
 }
+// Reloads both tabs; shows a connectivity hint if the API is unreachable.
 async function loadAll() {
   clearError();
   try {
@@ -916,11 +937,13 @@ async function loadAll() {
 }
 
 // ---------- Worker filters ----------
+// True when the worker list has an active filter (used for the empty-state text).
 function isAnyWorkerFilterActive() {
   return !!document.getElementById('filterWorkerDepartment').value;
 }
 
 // ---------- Render workers ----------
+// Returns the action buttons for one worker row, based on the viewer's role.
 function renderWorkerActions(w) {
   const canManage = currentUser.role === 'ADMIN' ||
     (currentUser.role === 'MANAGER' && w.workerType !== 'MANAGER');
@@ -936,6 +959,7 @@ function renderWorkerActions(w) {
   }
   return '';
 }
+// Rebuilds the workers table from the current page of local state.
 function renderWorkers() {
   const tbody = document.getElementById('workersTbody');
   tbody.innerHTML = '';
@@ -961,6 +985,7 @@ function renderWorkers() {
 
   renderWorkerPagination();
 }
+// Updates the workers page indicator and prev/next button states.
 function renderWorkerPagination() {
   const info = document.getElementById('workerPageInfo');
   info.textContent = workerTotalElements
@@ -969,6 +994,7 @@ function renderWorkerPagination() {
   document.getElementById('workerPrevBtn').disabled = workerPage <= 0;
   document.getElementById('workerNextBtn').disabled = workerPage >= workerTotalPages - 1;
 }
+// Switches to the Tasks tab filtered to one worker's tasks.
 function viewWorkerTasks(workerId) {
   taskWorkerIdFilter = workerId;
   taskPage = 0;
@@ -977,6 +1003,7 @@ function viewWorkerTasks(workerId) {
 }
 
 // ---------- Task filters ----------
+// True when the task list has an active filter (used for the empty-state text).
 function isAnyTaskFilterActive() {
   return !!(document.getElementById('filterPriority').value ||
             document.getElementById('filterStatus').value ||
@@ -986,6 +1013,7 @@ function isAnyTaskFilterActive() {
 }
 
 // ---------- Render tasks ----------
+// Shows/hides the "Showing tasks for worker: X" banner with its Clear button.
 function renderTaskWorkerFilterNote() {
   const note = document.getElementById('taskWorkerFilterNote');
   if (taskWorkerIdFilter == null) {
@@ -1007,6 +1035,8 @@ function renderTaskWorkerFilterNote() {
   note.appendChild(clearBtn);
   note.classList.add('active');
 }
+// Returns the action controls for one task row: employees get a status dropdown
+// on their own tasks only, admin/manager get Edit/Delete.
 function renderTaskActions(t) {
   if (currentUser.role === 'EMPLOYEE') {
     if (t.workerId !== currentUser.workerId) return '';
@@ -1018,6 +1048,7 @@ function renderTaskActions(t) {
   return `<button class="secondary" onclick="openEditTask(${t.id})">Edit</button>
         <button class="danger" onclick="deleteTask(${t.id})">Delete</button>`;
 }
+// Rebuilds the tasks table from the current page of local state.
 function renderTasks() {
   const tbody = document.getElementById('tasksTbody');
   tbody.innerHTML = '';
@@ -1051,6 +1082,7 @@ function renderTasks() {
 
   renderTaskPagination();
 }
+// Updates the tasks page indicator and prev/next button states.
 function renderTaskPagination() {
   const info = document.getElementById('taskPageInfo');
   info.textContent = taskTotalElements
@@ -1059,6 +1091,7 @@ function renderTaskPagination() {
   document.getElementById('taskPrevBtn').disabled = taskPage <= 0;
   document.getElementById('taskNextBtn').disabled = taskPage >= taskTotalPages - 1;
 }
+// Saves a status change from the employee's inline dropdown (PATCH /tasks/{id}/status).
 async function updateTaskStatusInline(id, status) {
   clearError();
   try {
@@ -1070,6 +1103,7 @@ async function updateTaskStatusInline(id, status) {
   }
 }
 
+// True when a task's due date has passed and it isn't DONE.
 function isOverdue(t) {
   return !!t.dueDate && t.status !== 'DONE' && new Date(t.dueDate).getTime() < Date.now();
 }
@@ -1094,6 +1128,7 @@ async function renderTaskWorkerOptions() {
   }
 }
 
+// Escapes user-provided text before it's inserted into table/option HTML (XSS guard).
 function escapeHtml(str) {
   if (str == null) return '';
   return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1131,6 +1166,7 @@ async function renderWorkerTaskOptions() {
 document.getElementById('workerDepartmentInput').addEventListener('change', () => {
   renderWorkerTaskOptions();
 });
+// Opens the Add-worker modal with empty fields and role-appropriate options.
 function openWorkerModal() {
   editingWorkerId = null;
   clearError('workerModalError');
@@ -1188,9 +1224,11 @@ function openEditWorker(id) {
 
   document.getElementById('workerModal').classList.add('active');
 }
+// Closes the worker modal without saving.
 function closeWorkerModal() {
   document.getElementById('workerModal').classList.remove('active');
 }
+// Validates and saves the worker modal (create or edit, depending on editingWorkerId).
 document.getElementById('workerSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('workerNameInput').value.trim();
   const department = document.getElementById('workerDepartmentInput').value;
@@ -1229,6 +1267,7 @@ document.getElementById('workerSaveBtn').addEventListener('click', async () => {
     showError('Could not save worker (' + e.message + ')', 'workerModalError');
   }
 });
+// Confirms and deletes a worker.
 async function deleteWorker(id) {
   if (!confirm('Delete this worker?')) return;
   clearError();
@@ -1241,16 +1280,19 @@ async function deleteWorker(id) {
 }
 
 // ---------- Admin self-edit (Admin has no Worker row, so no place in the Workers tab) ----------
+// Opens the Admin's own account modal, prefilled with the current username.
 function openEditAdminAccount() {
   clearError('adminAccountModalError');
   document.getElementById('adminAccountUsernameInput').value = currentUser.username;
   document.getElementById('adminAccountPasswordInput').value = '';
   document.getElementById('adminAccountModal').classList.add('active');
 }
+// Closes the admin account modal without saving.
 function closeAdminAccountModal() {
   document.getElementById('adminAccountModal').classList.remove('active');
 }
 document.getElementById('adminAccountCancelBtn').addEventListener('click', closeAdminAccountModal);
+// Validates and saves the Admin's username/password change (PUT /auth/me).
 document.getElementById('adminAccountSaveBtn').addEventListener('click', async () => {
   const username = document.getElementById('adminAccountUsernameInput').value.trim();
   const password = document.getElementById('adminAccountPasswordInput').value;
@@ -1337,6 +1379,7 @@ document.getElementById('taskNextBtn').addEventListener('click', () => {
 document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal());
 document.getElementById('taskCancelBtn').addEventListener('click', () => closeTaskModal());
 
+// Formats a Date as the value a `datetime-local` input expects (local time, no timezone).
 function localDateTimeInputValue(date) {
   const pad = n => String(n).padStart(2, '0');
   return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
@@ -1346,6 +1389,7 @@ document.getElementById('taskDepartmentInput').addEventListener('change', async 
   await renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = '';
 });
+// Opens the Add-task modal with defaults (manager's department locked in).
 async function openTaskModal() {
   editingTaskId = null;
   clearError('taskModalError');
@@ -1366,6 +1410,7 @@ async function openTaskModal() {
   document.getElementById('taskWorkerInput').value = '';
   document.getElementById('taskModal').classList.add('active');
 }
+// Opens the Edit-task modal prefilled from the local tasks array.
 async function openEditTask(id) {
   const t = tasks.find(t => t.id === id);
   if (!t) return;
@@ -1387,9 +1432,11 @@ async function openEditTask(id) {
   document.getElementById('taskWorkerInput').value = t.workerId ? t.workerId : '';
   document.getElementById('taskModal').classList.add('active');
 }
+// Closes the task modal without saving.
 function closeTaskModal() {
   document.getElementById('taskModal').classList.remove('active');
 }
+// Validates and saves the task modal (create or edit, depending on editingTaskId).
 document.getElementById('taskSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('taskNameInput').value.trim();
   const status = document.getElementById('taskStatusInput').value;
@@ -1439,6 +1486,7 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     showError('Could not save task (' + e.message + ')', 'taskModalError');
   }
 });
+// Confirms and deletes a task.
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
   clearError();
