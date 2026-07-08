@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class TaskService {
@@ -86,13 +85,13 @@ public class TaskService {
             throw new ForbiddenOperationException("Managers can only create tasks in their own department");
         }
 
+        // A nonexistent workerId is a 404, not a silently unassigned task
         if (task.getWorker() != null) {
-            Optional<Worker> workerOpt = workerRepository.findById(task.getWorker().getId());
-            task.setWorker(workerOpt.orElse(null));
-        }
-
-        if (task.getWorker() != null) {
-            assertSameDepartment(task, task.getWorker());
+            int workerId = task.getWorker().getId();
+            Worker worker = workerRepository.findById(workerId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + workerId));
+            task.setWorker(worker);
+            assertSameDepartment(task, worker);
         }
 
         return taskRepository.save(task);
@@ -121,13 +120,16 @@ public class TaskService {
         existingTask.setDueDate(updatedData.getDueDate());
         existingTask.setDepartment(updatedData.getDepartment());
 
+        // PUT carries the full desired state, so workerId decides the assignment either way:
+        // present = (re)assign, absent/null = unassign. A nonexistent workerId is a 404,
+        // not a silent no-op.
         if (updatedData.getWorker() != null) {
             int workerId = updatedData.getWorker().getId();
-            Optional<Worker> workerOpt = workerRepository.findById(workerId);
-
-            if (workerOpt.isPresent()) {
-                existingTask.setWorker(workerOpt.get());
-            }
+            Worker worker = workerRepository.findById(workerId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + workerId));
+            existingTask.setWorker(worker);
+        } else {
+            existingTask.setWorker(null);
         }
 
         // re-checked unconditionally (not just when the worker changed this request) so a

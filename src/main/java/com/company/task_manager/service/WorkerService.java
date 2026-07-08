@@ -8,6 +8,7 @@ import com.company.task_manager.model.RegularEmployee;
 import com.company.task_manager.model.Task;
 import com.company.task_manager.model.Worker;
 import com.company.task_manager.model.WorkerType;
+import com.company.task_manager.repository.AdminAccountRepository;
 import com.company.task_manager.repository.ManagerRepository;
 import com.company.task_manager.repository.TaskRepository;
 import com.company.task_manager.repository.WorkerRepository;
@@ -33,13 +34,16 @@ public class WorkerService {
     private WorkerRepository workerRepository;
     private TaskRepository taskRepository;
     private ManagerRepository managerRepository;
+    private AdminAccountRepository adminAccountRepository;
     private PasswordEncoder passwordEncoder;
 
     public WorkerService(WorkerRepository workerRepository, TaskRepository taskRepository,
-                          ManagerRepository managerRepository, PasswordEncoder passwordEncoder) {
+                          ManagerRepository managerRepository, AdminAccountRepository adminAccountRepository,
+                          PasswordEncoder passwordEncoder) {
         this.workerRepository = workerRepository;
         this.taskRepository = taskRepository;
         this.managerRepository = managerRepository;
+        this.adminAccountRepository = adminAccountRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -87,6 +91,7 @@ public class WorkerService {
         if (workerType == WorkerType.MANAGER && managerRepository.existsByDepartment(department)) {
             throw new IllegalArgumentException("Department " + department + " already has a manager");
         }
+        assertUsernameAvailable(username, null);
 
         Worker worker = workerType == WorkerType.MANAGER ? new Manager(name) : new RegularEmployee(name);
         worker.setDepartment(department);
@@ -121,10 +126,24 @@ public class WorkerService {
         Worker existingWorker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
 
+        // Self-service edit: an Employee or Manager editing their own record may only change
+        // name/username/password. Department and taskIds are deliberately never read on this
+        // path, so a worker can never move their own department or unassign their own tasks.
+        if (isSelfEdit(existingWorker, principal)) {
+            assertUsernameAvailable(username, existingWorker.getId());
+            existingWorker.setName(name);
+            existingWorker.setUsername(username);
+            if (password != null && !password.isBlank()) {
+                existingWorker.setPassword(passwordEncoder.encode(password));
+            }
+            return workerRepository.save(existingWorker);
+        }
+
         assertCanManage(existingWorker, principal);
         if (principal.isManager() && department != principal.getDepartment()) {
             throw new ForbiddenOperationException("Managers cannot move a worker to another department");
         }
+        assertUsernameAvailable(username, existingWorker.getId());
 
         existingWorker.setName(name); // odkiaľ zoberieš nové meno?
         existingWorker.setDepartment(department);
@@ -172,9 +191,26 @@ public class WorkerService {
         throw new ForbiddenOperationException("You are not allowed to manage this worker");
     }
 
+    // True when a non-admin Employee/Manager is updating their own worker record (not someone else's).
+    private boolean isSelfEdit(Worker worker, AppUserPrincipal principal) {
+        return !principal.isAdmin() && principal.getWorkerId() != null && principal.getWorkerId() == worker.getId();
+    }
+
     private void assertSameDepartment(Worker worker, Task task) {
         if (worker.getDepartment() != task.getDepartment()) {
             throw new IllegalArgumentException("Worker department must match the assigned task's department");
+        }
+    }
+
+    // Rejects a username already used by another worker or by the admin account - login resolves
+    // admin first, then worker, so a duplicate would either fail the DB unique constraint (worker
+    // vs worker) or silently shadow the worker's login (worker vs admin).
+    private void assertUsernameAvailable(String username, Integer currentWorkerId) {
+        boolean takenByOtherWorker = workerRepository.findByUsername(username)
+                .map(other -> currentWorkerId == null || other.getId() != currentWorkerId)
+                .orElse(false);
+        if (takenByOtherWorker || adminAccountRepository.findByUsername(username).isPresent()) {
+            throw new IllegalArgumentException("Username '" + username + "' is already taken");
         }
     }
 }

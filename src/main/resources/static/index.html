@@ -444,6 +444,7 @@
     <h1>Task Manager</h1>
     <div class="user-info">
       <span id="currentUserLabel"></span>
+      <button class="secondary" id="editAdminAccountBtn" style="display:none;" onclick="openEditAdminAccount()">Edit my account</button>
       <button class="secondary" id="logoutBtn">Log out</button>
     </div>
   </div>
@@ -645,6 +646,26 @@
   </div>
 </div>
 
+<!-- EDIT ADMIN ACCOUNT MODAL -->
+<div class="overlay" id="adminAccountModal">
+  <div class="modal">
+    <h3>Edit my account</h3>
+    <div class="error-box" id="adminAccountModalError"></div>
+    <div class="field">
+      <label>Username *</label>
+      <input type="text" id="adminAccountUsernameInput" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>New password (leave blank to keep current)</label>
+      <input type="password" id="adminAccountPasswordInput" autocomplete="new-password">
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="adminAccountCancelBtn">Cancel</button>
+      <button id="adminAccountSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 </div>
 <!-- /APP SHELL -->
 
@@ -715,6 +736,9 @@ function applyRoleVisibility() {
   const isAdmin = role === 'ADMIN';
   document.getElementById('workerDepartmentFilterField').style.display = isAdmin ? '' : 'none';
   document.getElementById('taskDepartmentFilterField').style.display = isAdmin ? '' : 'none';
+  // Admin isn't a Worker row, so it has no row in the Workers tab to self-edit from -
+  // this button is its only way to change username/password.
+  document.getElementById('editAdminAccountBtn').style.display = isAdmin ? '' : 'none';
 }
 async function bootstrapSession() {
   try {
@@ -809,7 +833,14 @@ async function apiPatch(path, body) {
   return res.status === 204 ? null : res.json();
 }
 async function errorMessage(res, label) {
-  const text = await res.text().catch(() => '');
+  let text = await res.text().catch(() => '');
+  // If the body is a Spring Boot error JSON, pull out just the human-readable message
+  try {
+    const parsed = JSON.parse(text);
+    text = parsed.message || parsed.error || text;
+  } catch (e) { /* plain-text body - keep as is */ }
+  // Never flood the error box (e.g. an unexpected stack trace in the response body)
+  if (text.length > 300) text = text.slice(0, 300) + '…';
   return text || (label + ' failed (' + res.status + ')');
 }
 async function apiDelete(path) {
@@ -893,9 +924,17 @@ function isAnyWorkerFilterActive() {
 function renderWorkerActions(w) {
   const canManage = currentUser.role === 'ADMIN' ||
     (currentUser.role === 'MANAGER' && w.workerType !== 'MANAGER');
-  if (!canManage) return '';
-  return `<button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>
+  if (canManage) {
+    return `<button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>
         <button class="danger" onclick="deleteWorker(${w.id})">Delete</button>`;
+  }
+  // Self-service: anyone (Employee or Manager) may edit their own row - name/username/password
+  // only, no delete. Backend enforces the same restriction regardless of what the UI sends.
+  const isSelf = currentUser.workerId != null && w.id === currentUser.workerId;
+  if (isSelf) {
+    return `<button class="secondary" onclick="openEditWorker(${w.id})">Edit</button>`;
+  }
+  return '';
 }
 function renderWorkers() {
   const tbody = document.getElementById('workersTbody');
@@ -1128,14 +1167,25 @@ function openEditWorker(id) {
   document.getElementById('workerPasswordInput').value = '';
   document.getElementById('workerPasswordLabel').textContent = 'New password (leave blank to keep current)';
 
+  // Editing your own row (Employee or Manager) is self-service only: no department change,
+  // no task (re)assignment - matches what WorkerService.updateWorker actually allows.
+  const isSelf = currentUser.role !== 'ADMIN' && currentUser.workerId != null && id === currentUser.workerId;
+
   const deptInput = document.getElementById('workerDepartmentInput');
   deptInput.value = w.department || 'IT';
-  deptInput.disabled = currentUser.role === 'MANAGER';
+  deptInput.disabled = currentUser.role === 'MANAGER' || isSelf;
 
   // a worker's type is fixed at creation - not editable afterwards
   document.getElementById('workerTypeField').style.display = 'none';
 
-  renderWorkerTaskOptions();
+  const tasksField = document.getElementById('workerTasksField');
+  if (isSelf) {
+    tasksField.style.display = 'none';
+  } else {
+    tasksField.style.display = '';
+    renderWorkerTaskOptions();
+  }
+
   document.getElementById('workerModal').classList.add('active');
 }
 function closeWorkerModal() {
@@ -1189,6 +1239,37 @@ async function deleteWorker(id) {
     showError('Could not delete worker (' + e.message + ')');
   }
 }
+
+// ---------- Admin self-edit (Admin has no Worker row, so no place in the Workers tab) ----------
+function openEditAdminAccount() {
+  clearError('adminAccountModalError');
+  document.getElementById('adminAccountUsernameInput').value = currentUser.username;
+  document.getElementById('adminAccountPasswordInput').value = '';
+  document.getElementById('adminAccountModal').classList.add('active');
+}
+function closeAdminAccountModal() {
+  document.getElementById('adminAccountModal').classList.remove('active');
+}
+document.getElementById('adminAccountCancelBtn').addEventListener('click', closeAdminAccountModal);
+document.getElementById('adminAccountSaveBtn').addEventListener('click', async () => {
+  const username = document.getElementById('adminAccountUsernameInput').value.trim();
+  const password = document.getElementById('adminAccountPasswordInput').value;
+  clearError('adminAccountModalError');
+  if (!username) {
+    showError('Username is required', 'adminAccountModalError');
+    return;
+  }
+  const body = { username };
+  if (password) body.password = password;
+  try {
+    const updated = await apiPut('/auth/me', body);
+    currentUser.username = updated.username;
+    applyRoleVisibility();
+    closeAdminAccountModal();
+  } catch (e) {
+    showError('Could not save account (' + e.message + ')', 'adminAccountModalError');
+  }
+});
 
 // ---------- Worker filters ----------
 document.getElementById('filterWorkerDepartment').addEventListener('change', () => {
@@ -1343,8 +1424,8 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     return;
   }
 
-  const body = { name, status, priority, dueDate, department };
-  if (workerId) body.workerId = Number(workerId);
+  // workerId null = unassigned ("— none —"); PUT always carries the full desired state
+  const body = { name, status, priority, dueDate, department, workerId: workerId ? Number(workerId) : null };
 
   try {
     if (editingTaskId) {

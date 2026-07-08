@@ -2,6 +2,7 @@ package com.company.task_manager.controller;
 
 import com.company.task_manager.exception.ForbiddenOperationException;
 import com.company.task_manager.exception.ResourceNotFoundException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -26,6 +27,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenOperationException.class)
     public ResponseEntity<String> handleForbidden(ForbiddenOperationException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
+    }
+
+    // Safety net for DB constraint violations (e.g. a duplicate username slipping past the
+    // service-layer check in a race) - returns a short 400 instead of a 500 with a stack trace.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<String> handleDataIntegrity(DataIntegrityViolationException ex) {
+        return ResponseEntity.badRequest().body("The change conflicts with existing data (e.g. a username that is already taken)");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

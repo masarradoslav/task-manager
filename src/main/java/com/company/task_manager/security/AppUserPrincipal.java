@@ -21,27 +21,29 @@ public class AppUserPrincipal implements UserDetails {
     private final String password;
     private final Role role;
     private final Integer workerId;
+    private final Integer adminId;
     private final Department department;
     private final String displayName;
 
-    private AppUserPrincipal(String username, String password, Role role, Integer workerId,
+    private AppUserPrincipal(String username, String password, Role role, Integer workerId, Integer adminId,
                               Department department, String displayName) {
         this.username = username;
         this.password = password;
         this.role = role;
         this.workerId = workerId;
+        this.adminId = adminId;
         this.department = department;
         this.displayName = displayName;
     }
 
     public static AppUserPrincipal forAdmin(AdminAccount admin) {
-        return new AppUserPrincipal(admin.getUsername(), admin.getPassword(), Role.ADMIN, null, null, "Admin");
+        return new AppUserPrincipal(admin.getUsername(), admin.getPassword(), Role.ADMIN, null, admin.getId(), null, "Admin");
     }
 
     public static AppUserPrincipal forWorker(Worker worker) {
         Role role = worker instanceof Manager ? Role.MANAGER : Role.EMPLOYEE;
         return new AppUserPrincipal(worker.getUsername(), worker.getPassword(), role,
-                worker.getId(), worker.getDepartment(), worker.getName());
+                worker.getId(), null, worker.getDepartment(), worker.getName());
     }
 
     public Role getRole() {
@@ -62,6 +64,10 @@ public class AppUserPrincipal implements UserDetails {
 
     public Integer getWorkerId() {
         return workerId;
+    }
+
+    public Integer getAdminId() {
+        return adminId;
     }
 
     public Department getDepartment() {
