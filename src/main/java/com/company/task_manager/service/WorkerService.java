@@ -92,6 +92,9 @@ public class WorkerService {
         if (password == null || password.isBlank()) {
             throw new IllegalArgumentException("Password is required");
         }
+        if (workerType == null) {
+            throw new IllegalArgumentException("Worker type is required");
+        }
         if (workerType == WorkerType.MANAGER && managerRepository.existsByDepartment(department)) {
             throw new IllegalArgumentException("Department " + department + " already has a manager");
         }
@@ -152,7 +155,7 @@ public class WorkerService {
         }
         assertUsernameAvailable(username, existingWorker.getId());
 
-        existingWorker.setName(name); // odkiaľ zoberieš nové meno?
+        existingWorker.setName(name);
         existingWorker.setDepartment(department);
         existingWorker.setUsername(username);
         if (password != null && !password.isBlank()) {
@@ -189,7 +192,7 @@ public class WorkerService {
             assertSameDepartment(existingWorker, task);
         }
 
-        return workerRepository.save(existingWorker); // ktorý objekt ukladáš?
+        return workerRepository.save(existingWorker);
     }
 
     // Admin manages everyone; a manager manages only non-manager workers of their department.

@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 // The actual login/logout POST endpoints are handled by Spring Security's formLogin/logout
-// filters (see SecurityConfig) - this controller only exposes "who am I" for the frontend
+// filters (SecurityConfig), this controller only exposes "who am I" for the frontend
 // to bootstrap its role-based UI after a successful login, plus Admin's own self-edit (Manager/
 // Employee self-edit goes through WorkerController instead, since they're Worker rows).
 @RestController
@@ -27,13 +27,13 @@ public class AuthController {
         this.adminAccountService = adminAccountService;
     }
 
-    // GET /auth/me - who am I (username, role, department, ...) for the logged-in session.
+    // GET /auth/me - returns currently logged in user
     @GetMapping("/me")
     public CurrentUserResponse me(@AuthenticationPrincipal AppUserPrincipal principal) {
         return CurrentUserResponse.from(principal);
     }
 
-    // PUT /auth/me - the Admin's self-edit (username + optional new password).
+    // PUT /auth/me - the Admin self edit
     @PutMapping("/me")
     public AdminAccountResponse updateMe(@Valid @RequestBody AdminAccountRequest request,
                                           @AuthenticationPrincipal AppUserPrincipal principal) {

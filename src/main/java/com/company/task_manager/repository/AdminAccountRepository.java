@@ -8,6 +8,6 @@ import java.util.Optional;
 
 @Repository
 public interface AdminAccountRepository extends JpaRepository<AdminAccount, Integer> {
-    // Looks up an admin account by login username, used for authentication and seeding.
+    // looks up an admin account by login username, used for authentication and seeding
     Optional<AdminAccount> findByUsername(String username);
 }

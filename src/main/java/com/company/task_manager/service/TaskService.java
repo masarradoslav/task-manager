@@ -122,7 +122,7 @@ public class TaskService {
             }
         }
 
-        existingTask.setName(updatedData.getName()); // odkiaľ zoberieš nové meno?
+        existingTask.setName(updatedData.getName());
         existingTask.setStatus(updatedData.getStatus());
         existingTask.setPriority(updatedData.getPriority());
         existingTask.setDueDate(updatedData.getDueDate());
@@ -146,7 +146,7 @@ public class TaskService {
             assertSameDepartment(existingTask, existingTask.getWorker());
         }
 
-        return taskRepository.save(existingTask); // ktorý objekt ukladáš?
+        return taskRepository.save(existingTask);
     }
 
     // The one edit a regular employee is allowed to make: the status of a task assigned

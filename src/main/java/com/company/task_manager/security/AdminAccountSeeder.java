@@ -6,8 +6,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-// Seeds the default admin/admin account on first startup, if it doesn't already exist.
-// The password is still BCrypt-hashed before storage - "admin" is just the demo seed value.
 @Component
 public class AdminAccountSeeder implements CommandLineRunner {
 
@@ -19,7 +17,7 @@ public class AdminAccountSeeder implements CommandLineRunner {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Creates the admin/admin account at startup unless it already exists.
+    // creates the admin/admin account at startup unless it already exists
     @Override
     public void run(String... args) {
         if (adminAccountRepository.findByUsername("admin").isEmpty()) {

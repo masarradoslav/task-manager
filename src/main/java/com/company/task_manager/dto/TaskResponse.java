@@ -1,14 +1,10 @@
 package com.company.task_manager.dto;
 
-import com.company.task_manager.model.Department;
-import com.company.task_manager.model.Task;
-import com.company.task_manager.model.TaskPriority;
-import com.company.task_manager.model.TaskStatus;
+import com.company.task_manager.model.*;
 
 import java.time.LocalDateTime;
 
-// Plocha DTO - worker je referencovaný len cez id/name, nie celou entitou,
-// takže nemôže dôjsť k nekonečnej rekurzii Task -> Worker -> tasks -> Task ...
+
 public record TaskResponse(
         int id,
         String name,
@@ -19,8 +15,9 @@ public record TaskResponse(
         Integer workerId,
         String workerName
 ) {
-    // Builds a response DTO from a Task entity, flattening the worker to id/name only.
+    // builds a response DTO from a Task entity, worker is represented by name and id only
     public static TaskResponse from(Task task) {
+        Worker worker = task.getWorker();
         return new TaskResponse(
                 task.getId(),
                 task.getName(),
@@ -28,8 +25,8 @@ public record TaskResponse(
                 task.getPriority(),
                 task.getDueDate(),
                 task.getDepartment(),
-                task.getWorker() != null ? task.getWorker().getId() : null,
-                task.getWorker() != null ? task.getWorker().getName() : null
+                worker != null ? worker.getId() : null,
+                worker != null ? worker.getName() : null
         );
     }
 }

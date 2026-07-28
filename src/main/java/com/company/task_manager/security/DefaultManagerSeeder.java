@@ -33,7 +33,7 @@ public class DefaultManagerSeeder implements CommandLineRunner {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Creates each department's default manager at startup if the slot and username are free.
+    // Creates each department default manager at startup if the slot and username are free
     @Override
     public void run(String... args) {
         DEFAULT_MANAGERS.forEach((department, nameAndCredentials) -> {

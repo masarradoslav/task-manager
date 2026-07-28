@@ -39,7 +39,7 @@ public class TaskController {
             @AuthenticationPrincipal AppUserPrincipal principal
     ){
         Page<Task> result = taskService.getTasks(page, size, status, priority, department, overdueOnly, workerId, principal);
-        return PageResponse.from(result.map(TaskResponse::from));
+        return PageResponse.from(result.map(task -> TaskResponse.from(task)));
     }
 
     // GET /tasks/{id} - one task by id.

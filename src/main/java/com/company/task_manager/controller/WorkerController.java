@@ -31,7 +31,7 @@ public class WorkerController {
             @AuthenticationPrincipal AppUserPrincipal principal
     ){
         Page<Worker> result = workerService.getWorkers(page, size, department, principal);
-        return PageResponse.from(result.map(WorkerResponse::from));
+        return PageResponse.from(result.map(worker -> WorkerResponse.from(worker)));
     }
 
 
