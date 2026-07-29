@@ -48,7 +48,7 @@ public class TaskService {
         return taskRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
-    // Combines the optional list filters (status/priority/department/assignee/overdue) into one query.
+    // Combines the optional list filters (status/priority/department/assignee/overdue) into one query
     private Specification<Task> buildFilter(TaskStatus status, TaskPriority priority,
                                              Department department, Boolean overdueOnly, Integer workerId){
         return (root, query, cb) -> {
@@ -104,7 +104,7 @@ public class TaskService {
     }
 
 
-    // Replaces a task's state with the incoming full representation (Admin/Manager only,
+    // Replaces a task state with the incoming full representation (Admin/Manager only,
     // managers scoped to their department).
     public Task updateTask(int id, Task updatedData, AppUserPrincipal principal){
         Task existingTask = taskRepository.findById(id)
@@ -129,8 +129,7 @@ public class TaskService {
         existingTask.setDepartment(updatedData.getDepartment());
 
         // PUT carries the full desired state, so workerId decides the assignment either way:
-        // present = (re)assign, absent/null = unassign. A nonexistent workerId is a 404,
-        // not a silent no-op.
+        // present = (re)assign, absent/null = unassign. A nonexistent workerId is a 404
         if (updatedData.getWorker() != null) {
             int workerId = updatedData.getWorker().getId();
             Worker worker = workerRepository.findById(workerId)
