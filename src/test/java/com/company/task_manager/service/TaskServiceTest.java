@@ -1,6 +1,7 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ForbiddenOperationException;
+import com.company.task_manager.exception.OptimisticLockConflictException;
 import com.company.task_manager.exception.ResourceNotFoundException;
 import com.company.task_manager.model.AdminAccount;
 import com.company.task_manager.model.Department;
@@ -20,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -87,6 +89,7 @@ class TaskServiceTest {
     void createTask_shouldSave_whenAdminCreates() {
         Task task = new Task("New task");
         task.setDepartment(Department.ACCOUNTING);
+        task.setDueDate(LocalDateTime.now().plusDays(1));
         when(taskRepository.save(task)).thenReturn(task);
 
         Task result = taskService.createTask(task, adminPrincipal());
@@ -99,6 +102,7 @@ class TaskServiceTest {
     void createTask_shouldSave_whenManagerCreatesInOwnDepartment() {
         Task task = new Task("New task");
         task.setDepartment(Department.IT);
+        task.setDueDate(LocalDateTime.now().plusDays(1));
         when(taskRepository.save(task)).thenReturn(task);
 
         Task result = taskService.createTask(task, managerPrincipal(Department.IT));
@@ -111,6 +115,7 @@ class TaskServiceTest {
     void createTask_shouldThrowIllegalArgument_whenAssignedWorkerDepartmentMismatches() {
         Task task = new Task("New task");
         task.setDepartment(Department.IT);
+        task.setDueDate(LocalDateTime.now().plusDays(1));
         // placeholder referencing an existing worker by id - the service resolves it via the repository
         task.setWorker(new Worker(5));
         Worker mismatchedWorker = new RegularEmployee("Bob");
@@ -170,11 +175,52 @@ class TaskServiceTest {
     }
 
     @Test
-    void deleteTask() {
+    void updateTask_shouldThrowIllegalArgument_whenVersionMissing() {
+        Task existingTask = new Task("Existing task");
+        existingTask.setDepartment(Department.IT);
+        when(taskRepository.findById(1)).thenReturn(Optional.of(existingTask));
+
+        Task updatedData = new Task("Updated name");
+        updatedData.setDepartment(Department.IT);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> taskService.updateTask(1, updatedData, null, adminPrincipal()));
+        verify(taskRepository, never()).save(any());
     }
 
     @Test
-    void updateTask() {
+    void updateTask_shouldThrowOptimisticLockConflict_whenVersionMismatches() {
+        Task existingTask = new Task("Existing task");
+        existingTask.setDepartment(Department.IT);
+        when(taskRepository.findById(1)).thenReturn(Optional.of(existingTask));
+
+        Task updatedData = new Task("Updated name");
+        updatedData.setDepartment(Department.IT);
+
+        // existingTask.getVersion() defaults to 0 for a freshly-constructed entity - 5 mismatches
+        assertThrows(OptimisticLockConflictException.class,
+                () -> taskService.updateTask(1, updatedData, 5L, adminPrincipal()));
+        verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    void updateTask_shouldSave_whenVersionMatches() {
+        Task existingTask = new Task("Existing task");
+        existingTask.setDepartment(Department.IT);
+        when(taskRepository.findById(1)).thenReturn(Optional.of(existingTask));
+        when(taskRepository.save(existingTask)).thenReturn(existingTask);
+
+        Task updatedData = new Task("Updated name");
+        updatedData.setDepartment(Department.IT);
+
+        Task result = taskService.updateTask(1, updatedData, 0L, adminPrincipal());
+
+        assertEquals("Updated name", result.getName());
+        verify(taskRepository).save(existingTask);
+    }
+
+    @Test
+    void deleteTask() {
     }
 
     @Test

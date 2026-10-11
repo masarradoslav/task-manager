@@ -13,7 +13,8 @@ public record TaskResponse(
         LocalDateTime dueDate,
         Department department,
         Integer workerId,
-        String workerName
+        String workerName,
+        long version
 ) {
     // builds a response DTO from a Task entity, worker is represented by name and id only
     public static TaskResponse from(Task task) {
@@ -26,7 +27,8 @@ public record TaskResponse(
                 task.getDueDate(),
                 task.getDepartment(),
                 worker != null ? worker.getId() : null,
-                worker != null ? worker.getName() : null
+                worker != null ? worker.getName() : null,
+                task.getVersion()
         );
     }
 }

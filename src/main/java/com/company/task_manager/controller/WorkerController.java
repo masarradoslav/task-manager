@@ -62,7 +62,7 @@ public class WorkerController {
     public WorkerResponse updateWorker(@PathVariable int id, @Valid @RequestBody WorkerRequest request,
                                         @AuthenticationPrincipal AppUserPrincipal principal){
         Worker updated = workerService.updateWorker(id, request.name(), request.department(), request.username(),
-                request.password(), request.taskIds(), principal);
+                request.password(), request.taskIds(), request.version(), principal);
         return WorkerResponse.from(updated);
     }
 

@@ -3,13 +3,11 @@ package com.company.task_manager.dto;
 import com.company.task_manager.model.Department;
 import com.company.task_manager.model.TaskPriority;
 import com.company.task_manager.model.TaskStatus;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
-//incoming data for creating/updating a task, every filed required except workerID as request can be created/updated as unassigned
 public record TaskRequest(
         @NotBlank(message = "Name must not be blank")
         String name,
@@ -17,11 +15,10 @@ public record TaskRequest(
         TaskStatus status,
         @NotNull(message = "Priority is required")
         TaskPriority priority,
-        @NotNull(message = "Due date is required")
-        @Future(message = "Due date must be in the future")
         LocalDateTime dueDate,
         @NotNull(message = "Department is required")
         Department department,
-        Integer workerId
+        Integer workerId,
+        Long version
 ) {
 }

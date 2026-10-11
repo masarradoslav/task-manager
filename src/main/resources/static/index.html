@@ -292,6 +292,10 @@
     padding: 24px;
     width: 340px;
   }
+  .modal.wide {
+    width: 480px;
+    max-width: 90vw;
+  }
   .modal h3 {
     margin: 0 0 16px 0;
     font-size: 15px;
@@ -362,6 +366,59 @@
     color: var(--muted);
     font-size: 13px;
     padding: 8px 10px;
+  }
+  .field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 70px;
+  }
+  .comment-list {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--panel);
+    margin-bottom: 14px;
+  }
+  .comment-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--bg);
+  }
+  .comment-item:last-child {
+    border-bottom: none;
+  }
+  .comment-item .comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .comment-item .comment-meta {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .comment-item .comment-content {
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 6px;
+  }
+  .comment-item .comment-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .comment-item .comment-actions button {
+    padding: 4px 10px;
+    font-size: 12px;
   }
   .modal-actions {
     display: flex;
@@ -646,6 +703,40 @@
   </div>
 </div>
 
+<!-- COMMENTS LIST MODAL -->
+<div class="overlay" id="commentsModal">
+  <div class="modal wide">
+    <h3 id="commentsModalTitle">Comments</h3>
+    <div class="error-box" id="commentsModalError"></div>
+    <div class="modal-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 14px;">
+      <button class="secondary" id="commentsCloseBtn">Close</button>
+      <button id="addCommentBtn">Add comment</button>
+    </div>
+    <div class="comment-list" id="commentsList"></div>
+    <div class="empty" id="commentsEmpty" style="display:none;">No comments yet.</div>
+  </div>
+</div>
+
+<!-- ADD/EDIT COMMENT MODAL -->
+<div class="overlay" id="commentModal">
+  <div class="modal">
+    <h3 id="commentModalTitle">Add comment</h3>
+    <div class="error-box" id="commentModalError"></div>
+    <div class="field">
+      <label>Name *</label>
+      <input type="text" id="commentNameInput" placeholder="e.g. Status update">
+    </div>
+    <div class="field">
+      <label>Content *</label>
+      <textarea id="commentContentInput" placeholder="Write your comment..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="commentCancelBtn">Cancel</button>
+      <button id="commentSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT ADMIN ACCOUNT MODAL -->
 <div class="overlay" id="adminAccountModal">
   <div class="modal">
@@ -677,6 +768,9 @@ let workers = [];
 let tasks = [];
 let editingWorkerId = null;
 let editingTaskId = null;
+let editingTaskOriginalDueDate = '';
+let editingTaskVersion = null;
+let editingWorkerVersion = null;
 let workerPage = 0;
 let workerTotalPages = 0;
 let workerTotalElements = 0;
@@ -684,6 +778,9 @@ let taskPage = 0;
 let taskTotalPages = 0;
 let taskTotalElements = 0;
 let taskWorkerIdFilter = null;
+let comments = [];
+let commentsTaskId = null;
+let editingCommentId = null;
 
 // ---------- Tabs ----------
 document.querySelectorAll('.tab').forEach(tab => {
@@ -1035,17 +1132,19 @@ function renderTaskWorkerFilterNote() {
   note.appendChild(clearBtn);
   note.classList.add('active');
 }
-// Returns the action controls for one task row: employees get a status dropdown
-// on their own tasks only, admin/manager get Edit/Delete.
+// Returns the action controls for one task row: every role gets a Comments button (all users
+// can comment on every task in their department, not just tasks assigned to them), employees
+// additionally get a status dropdown on their own tasks only, admin/manager get Edit/Delete.
 function renderTaskActions(t) {
+  const commentsBtn = `<button class="secondary" onclick="openCommentsModal(${t.id})">Comments</button>`;
   if (currentUser.role === 'EMPLOYEE') {
-    if (t.workerId !== currentUser.workerId) return '';
+    if (t.workerId !== currentUser.workerId) return commentsBtn;
     const options = ['TODO', 'IN_PROGRESS', 'DONE']
       .map(s => `<option value="${s}"${t.status === s ? ' selected' : ''}>${s}</option>`)
       .join('');
-    return `<select onchange="updateTaskStatusInline(${t.id}, this.value)">${options}</select>`;
+    return commentsBtn + `<select onchange="updateTaskStatusInline(${t.id}, this.value)">${options}</select>`;
   }
-  return `<button class="secondary" onclick="openEditTask(${t.id})">Edit</button>
+  return commentsBtn + `<button class="secondary" onclick="openEditTask(${t.id})">Edit</button>
         <button class="danger" onclick="deleteTask(${t.id})">Delete</button>`;
 }
 // Rebuilds the tasks table from the current page of local state.
@@ -1134,6 +1233,129 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ---------- Comments modal ----------
+document.getElementById('commentsCloseBtn').addEventListener('click', () => closeCommentsModal());
+document.getElementById('addCommentBtn').addEventListener('click', () => openAddCommentModal());
+document.getElementById('commentCancelBtn').addEventListener('click', () => closeCommentModal());
+
+// Opens the Comments modal for a task: fetches its comments and renders the list. Admin has no
+// Worker identity to author with, so it never gets the "Add comment" button.
+async function openCommentsModal(taskId) {
+  commentsTaskId = taskId;
+  clearError('commentsModalError');
+  const t = tasks.find(t => t.id === taskId);
+  document.getElementById('commentsModalTitle').textContent = 'Comments' + (t ? ' — ' + t.name : '');
+  document.getElementById('addCommentBtn').style.display = currentUser.role === 'ADMIN' ? 'none' : '';
+  document.getElementById('commentsModal').classList.add('active');
+  await loadComments();
+}
+// Closes the Comments modal.
+function closeCommentsModal() {
+  document.getElementById('commentsModal').classList.remove('active');
+  commentsTaskId = null;
+  comments = [];
+}
+// Fetches the current task's comments (server returns them latest-first) and re-renders the list.
+async function loadComments() {
+  try {
+    comments = await apiGet('/tasks/' + commentsTaskId + '/comments');
+    renderCommentsList();
+  } catch (e) {
+    showError('Could not load comments (' + e.message + ')', 'commentsModalError');
+  }
+}
+// Rebuilds the comment list inside the Comments modal from local state. Edit is author-only;
+// Delete is available to the author or to Admin (moderator).
+function renderCommentsList() {
+  const list = document.getElementById('commentsList');
+  const emptyEl = document.getElementById('commentsEmpty');
+  list.innerHTML = '';
+  emptyEl.style.display = comments.length ? 'none' : 'block';
+
+  comments.forEach(c => {
+    const isOwn = c.workerId === currentUser.workerId;
+    const canDelete = isOwn || currentUser.role === 'ADMIN';
+    const createdText = new Date(c.dateCreated).toLocaleString();
+    const editedText = c.dateLastEdit ? ' (edited ' + new Date(c.dateLastEdit).toLocaleString() + ')' : '';
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    div.innerHTML = `
+      <div class="comment-header">
+        <span>${escapeHtml(c.name)}</span>
+        <span class="comment-meta">${escapeHtml(c.workerName)} — ${createdText}${editedText}</span>
+      </div>
+      <div class="comment-content">${escapeHtml(c.content)}</div>
+      <div class="comment-actions">
+        ${isOwn ? `<button class="secondary" onclick="openEditComment(${c.id})">Edit</button>` : ''}
+        ${canDelete ? `<button class="danger" onclick="deleteComment(${c.id})">Delete</button>` : ''}
+      </div>`;
+    list.appendChild(div);
+  });
+}
+// Opens the Add-comment modal.
+function openAddCommentModal() {
+  editingCommentId = null;
+  clearError('commentModalError');
+  document.getElementById('commentModalTitle').textContent = 'Add comment';
+  document.getElementById('commentNameInput').value = '';
+  document.getElementById('commentContentInput').value = '';
+  document.getElementById('commentModal').classList.add('active');
+}
+// Opens the Edit-comment modal, prefilled from the local comments array.
+function openEditComment(id) {
+  const c = comments.find(c => c.id === id);
+  if (!c) return;
+  editingCommentId = id;
+  clearError('commentModalError');
+  document.getElementById('commentModalTitle').textContent = 'Edit comment';
+  document.getElementById('commentNameInput').value = c.name;
+  document.getElementById('commentContentInput').value = c.content;
+  document.getElementById('commentModal').classList.add('active');
+}
+// Closes the Add/Edit comment modal without saving.
+function closeCommentModal() {
+  document.getElementById('commentModal').classList.remove('active');
+}
+// Validates and saves the comment modal (create or edit, depending on editingCommentId).
+document.getElementById('commentSaveBtn').addEventListener('click', async () => {
+  const name = document.getElementById('commentNameInput').value.trim();
+  const content = document.getElementById('commentContentInput').value.trim();
+
+  clearError('commentModalError');
+  if (!name) {
+    showError('Name is required', 'commentModalError');
+    return;
+  }
+  if (!content) {
+    showError('Content is required', 'commentModalError');
+    return;
+  }
+
+  const body = { name, content };
+  try {
+    if (editingCommentId) {
+      await apiPut('/comments/' + editingCommentId, body);
+    } else {
+      await apiPost('/tasks/' + commentsTaskId + '/comments', body);
+    }
+    closeCommentModal();
+    await loadComments();
+  } catch (e) {
+    showError('Could not save comment (' + e.message + ')', 'commentModalError');
+  }
+});
+// Confirms and deletes a comment.
+async function deleteComment(id) {
+  if (!confirm('Delete this comment?')) return;
+  clearError('commentsModalError');
+  try {
+    await apiDelete('/comments/' + id);
+    await loadComments();
+  } catch (e) {
+    showError('Could not delete comment (' + e.message + ')', 'commentsModalError');
+  }
+}
+
 // ---------- Worker modal ----------
 document.getElementById('addWorkerBtn').addEventListener('click', () => openWorkerModal());
 document.getElementById('workerCancelBtn').addEventListener('click', () => closeWorkerModal());
@@ -1169,6 +1391,7 @@ document.getElementById('workerDepartmentInput').addEventListener('change', () =
 // Opens the Add-worker modal with empty fields and role-appropriate options.
 function openWorkerModal() {
   editingWorkerId = null;
+  editingWorkerVersion = null;
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Add worker';
   document.getElementById('workerNameInput').value = '';
@@ -1196,6 +1419,7 @@ function openEditWorker(id) {
   const w = workers.find(w => w.id === id);
   if (!w) return;
   editingWorkerId = id;
+  editingWorkerVersion = w.version;
   clearError('workerModalError');
   document.getElementById('workerModalTitle').textContent = 'Edit worker';
   document.getElementById('workerNameInput').value = w.name;
@@ -1253,7 +1477,9 @@ document.getElementById('workerSaveBtn').addEventListener('click', async () => {
     return;
   }
   const taskIds = Array.from(document.getElementById('workerTasksInput').querySelectorAll('input:checked')).map(cb => Number(cb.value));
-  const body = { name, department, username, workerType, taskIds };
+  // version is the optimistic-locking check: the server rejects the save (409) if the worker
+  // was changed by someone else since this modal loaded it.
+  const body = { name, department, username, workerType, taskIds, version: editingWorkerVersion };
   if (password) body.password = password;
   try {
     if (editingWorkerId) {
@@ -1392,6 +1618,8 @@ document.getElementById('taskDepartmentInput').addEventListener('change', async 
 // Opens the Add-task modal with defaults (manager's department locked in).
 async function openTaskModal() {
   editingTaskId = null;
+  editingTaskOriginalDueDate = '';
+  editingTaskVersion = null;
   clearError('taskModalError');
   document.getElementById('taskModalTitle').textContent = 'Add task';
   document.getElementById('taskNameInput').value = '';
@@ -1415,6 +1643,7 @@ async function openEditTask(id) {
   const t = tasks.find(t => t.id === id);
   if (!t) return;
   editingTaskId = id;
+  editingTaskVersion = t.version;
   clearError('taskModalError');
   document.getElementById('taskModalTitle').textContent = 'Edit task';
   document.getElementById('taskNameInput').value = t.name;
@@ -1427,7 +1656,8 @@ async function openEditTask(id) {
 
   const dueDateInput = document.getElementById('taskDueDateInput');
   dueDateInput.value = t.dueDate ? t.dueDate.slice(0, 16) : '';
-  dueDateInput.min = localDateTimeInputValue(new Date());
+  dueDateInput.min = '';
+  editingTaskOriginalDueDate = dueDateInput.value;
   await renderTaskWorkerOptions();
   document.getElementById('taskWorkerInput').value = t.workerId ? t.workerId : '';
   document.getElementById('taskModal').classList.add('active');
@@ -1466,13 +1696,24 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     showError('Due date is required', 'taskModalError');
     return;
   }
-  if (new Date(dueDate).getTime() <= Date.now()) {
+  // on edit, an unchanged due date is sent as null so the backend leaves it untouched
+  // (an existing overdue task can be edited without moving its due date forward);
+  // a due date that was actually changed still can't be set into the past, same as on create
+  const dueDateChanged = !editingTaskId || dueDate !== editingTaskOriginalDueDate;
+  if (dueDateChanged && new Date(dueDate).getTime() <= Date.now()) {
     showError('Due date must be in the future', 'taskModalError');
     return;
   }
 
-  // workerId null = unassigned ("— none —"); PUT always carries the full desired state
-  const body = { name, status, priority, dueDate, department, workerId: workerId ? Number(workerId) : null };
+  // workerId null = unassigned ("— none —"); PUT always carries the full desired state.
+  // version is the optimistic-locking check: the server rejects the save (409) if the task
+  // was changed by someone else since this modal loaded it.
+  const body = {
+    name, status, priority, department,
+    dueDate: dueDateChanged ? dueDate : null,
+    workerId: workerId ? Number(workerId) : null,
+    version: editingTaskVersion
+  };
 
   try {
     if (editingTaskId) {

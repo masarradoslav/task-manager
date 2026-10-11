@@ -18,13 +18,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-// Session-cookie based auth (not a URL/query-param token) is the deliberate choice here:
-// the session id lives only in an HttpOnly cookie (see application.yaml's
-// server.servlet.session.tracking-modes: cookie, which disables the old ;jsessionid= URL
-// fallback), so a URL can never be copied to "become" another logged-in user.
+// Session-cookie based auth:
+// the session id lives only in an HttpOnly cookie (application.yaml's
+// server.servlet.session.tracking-modes: cookie, disables the jsessionid= URL
+// fallback), so a URL can never be copied to "become" another logged-in user
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig {
+public class
+
+SecurityConfig {
 
     // BCrypt hasher used for all stored passwords (admin + workers).
     @Bean
@@ -33,7 +35,7 @@ public class SecurityConfig {
     }
 
     // Central security setup: CORS, CSRF cookie, session policy, which endpoints are
-    // public vs. authenticated, and the JSON login/logout/error responses.
+    // public vs. authenticated, and the JSON login/logout/error responses
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

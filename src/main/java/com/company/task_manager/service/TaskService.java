@@ -1,6 +1,7 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ForbiddenOperationException;
+import com.company.task_manager.exception.OptimisticLockConflictException;
 import com.company.task_manager.exception.ResourceNotFoundException;
 import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Task;
@@ -34,7 +35,7 @@ public class TaskService {
         this.workerRepository = workerRepository;
     }
 
-    // Returns a filtered page of tasks; non-admins are always scoped to their own department.
+    // returns a filtered page of tasks; non-admins are always scoped to their own department
     public Page<Task> getTasks(int page, int size, TaskStatus status, TaskPriority priority,
                                 Department department, Boolean overdueOnly, Integer workerId,
                                 AppUserPrincipal principal){
@@ -48,7 +49,7 @@ public class TaskService {
         return taskRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
-    // Combines the optional list filters (status/priority/department/assignee/overdue) into one query
+    // combines the optional list filters (status/priority/department/assignee/overdue) into one query
     private Specification<Task> buildFilter(TaskStatus status, TaskPriority priority,
                                              Department department, Boolean overdueOnly, Integer workerId){
         return (root, query, cb) -> {
@@ -65,7 +66,7 @@ public class TaskService {
         };
     }
 
-    // Loads one task, allowing non-admins to see only their own department's tasks.
+    // loads one task, allowing non-admins to see only their own department's tasks
     public Task findById(int id, AppUserPrincipal principal){
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
@@ -73,7 +74,7 @@ public class TaskService {
         return task;
     }
 
-    // Deletes a task if the principal manages its department.
+    // deletes a task if the principal manages its department
     public void deleteTask(int id, AppUserPrincipal principal){
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
@@ -81,8 +82,8 @@ public class TaskService {
         taskRepository.delete(task);
     }
 
-    // Creates a task, optionally assigned to a worker. Employees can't create tasks;
-    // managers only in their own department.
+    // creates a task, optionally assigned to a worker. Employees can't create tasks
+    // managers only in their own department
     public Task createTask(Task task, AppUserPrincipal principal){
         if (principal.isEmployee()) {
             throw new ForbiddenOperationException("Employees cannot create tasks");
@@ -90,8 +91,16 @@ public class TaskService {
         if (principal.isManager() && task.getDepartment() != principal.getDepartment()) {
             throw new ForbiddenOperationException("Managers can only create tasks in their own department");
         }
+        // dueDate is optional on TaskRequest (null means "keep current" on update), so creation
+        // must check presence itself; it must also be in the future
+        if (task.getDueDate() == null) {
+            throw new IllegalArgumentException("Due date is required");
+        }
+        if (task.getDueDate().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Due date must be in the future");
+        }
 
-        // A nonexistent workerId is a 404, not a silently unassigned task
+        // a nonexistent workerId is a 404, not a silently unassigned task
         if (task.getWorker() != null) {
             int workerId = task.getWorker().getId();
             Worker worker = workerRepository.findById(workerId)
@@ -104,9 +113,9 @@ public class TaskService {
     }
 
 
-    // Replaces a task state with the incoming full representation (Admin/Manager only,
-    // managers scoped to their department).
-    public Task updateTask(int id, Task updatedData, AppUserPrincipal principal){
+    // replaces a task state with the incoming full representation (Admin/Manager only,
+    // managers to their department)
+    public Task updateTask(int id, Task updatedData, Long expectedVersion, AppUserPrincipal principal){
         Task existingTask = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
 
@@ -122,14 +131,28 @@ public class TaskService {
             }
         }
 
+        // optimistic-locking check
+        if (expectedVersion == null) {
+            throw new IllegalArgumentException("Version is required");
+        }
+        if (existingTask.getVersion() != expectedVersion) {
+            throw new OptimisticLockConflictException("This task was changed by someone else since you loaded it. Reload and try again.");
+        }
+
         existingTask.setName(updatedData.getName());
         existingTask.setStatus(updatedData.getStatus());
         existingTask.setPriority(updatedData.getPriority());
-        existingTask.setDueDate(updatedData.getDueDate());
         existingTask.setDepartment(updatedData.getDepartment());
 
-        // PUT carries the full desired state, so workerId decides the assignment either way:
-        // present = (re)assign, absent/null = unassign. A nonexistent workerId is a 404
+        // null dueDate = keep the task's current due date (may legitimately be in the past,
+        // e.g. an already-overdue task); non-null = move it, which is not allowed into the past
+        if (updatedData.getDueDate() != null) {
+            if (updatedData.getDueDate().isBefore(LocalDateTime.now())) {
+                throw new IllegalArgumentException("Due date must not be in the past");
+            }
+            existingTask.setDueDate(updatedData.getDueDate());
+        }
+
         if (updatedData.getWorker() != null) {
             int workerId = updatedData.getWorker().getId();
             Worker worker = workerRepository.findById(workerId)
@@ -148,9 +171,8 @@ public class TaskService {
         return taskRepository.save(existingTask);
     }
 
-    // The one edit a regular employee is allowed to make: the status of a task assigned
-    // directly to them. Admin/Manager can also use this (subject to the same department
-    // scoping as a full edit) since it's just a narrower version of updateTask.
+    // edit a regular employee is allowed to make: the status of a task assigned
+    // directly to them
     public Task updateStatus(int id, TaskStatus status, AppUserPrincipal principal){
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
@@ -170,21 +192,21 @@ public class TaskService {
         return taskRepository.save(task);
     }
 
-    // Non-admins may only view tasks of their own department.
+    // non-admins may only view tasks of their own department
     private void assertCanView(Task task, AppUserPrincipal principal) {
         if (!principal.isAdmin() && task.getDepartment() != principal.getDepartment()) {
             throw new ForbiddenOperationException("You cannot view tasks from another department");
         }
     }
 
-    // Admin manages every task; a manager only those of their own department.
+    // admin manages every task; a manager only those of their own department
     private void assertCanManage(Task task, AppUserPrincipal principal) {
         if (principal.isAdmin()) return;
         if (principal.isManager() && task.getDepartment() == principal.getDepartment()) return;
         throw new ForbiddenOperationException("You are not allowed to manage this task");
     }
 
-    // A task may only ever be assigned to a worker of the same department.
+    // task may only ever be assigned to a worker of the same department
     private void assertSameDepartment(Task task, Worker worker) {
         if (task.getDepartment() != worker.getDepartment()) {
             throw new IllegalArgumentException("Task department must match the assigned worker's department");

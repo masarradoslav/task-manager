@@ -59,7 +59,7 @@ public class TaskController {
     @PutMapping("/{id}")
     public TaskResponse updateTask(@PathVariable int id, @Valid @RequestBody TaskRequest request,
                                     @AuthenticationPrincipal AppUserPrincipal principal){
-        Task updated = taskService.updateTask(id, toEntity(request), principal);
+        Task updated = taskService.updateTask(id, toEntity(request), request.version(), principal);
         return TaskResponse.from(updated);
     }
 

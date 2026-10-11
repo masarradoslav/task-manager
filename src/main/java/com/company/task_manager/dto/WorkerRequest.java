@@ -7,12 +7,6 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-// password is intentionally not @NotBlank: required on create (checked manually in
-// WorkerService.createWorker, since it's never sent back to prefill an edit form) but
-// optional on update, where a blank value means do not change the password.
-// workerType is only used on create(checked manually in WorkerService.createWorker),
-// a workers Manager/RegularEmployee subtype is fixed
-// at creation and ignored on update. taskIds is list of assigned tasks.
 public record WorkerRequest(
         @NotBlank(message = "Name must not be blank")
         String name,
@@ -22,6 +16,7 @@ public record WorkerRequest(
         String username,
         String password,
         WorkerType workerType,
-        List<Integer> taskIds
+        List<Integer> taskIds,
+        Long version
 ) {
 }

@@ -1,6 +1,7 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ForbiddenOperationException;
+import com.company.task_manager.exception.OptimisticLockConflictException;
 import com.company.task_manager.model.AdminAccount;
 import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Manager;
@@ -144,6 +145,42 @@ class WorkerServiceTest {
     }
 
     @Test
-    void updateWorker() {
+    void updateWorker_shouldThrowIllegalArgument_whenVersionMissing() {
+        Worker existingWorker = new RegularEmployee("Bob");
+        existingWorker.setDepartment(Department.IT);
+        when(workerRepository.findById(1)).thenReturn(Optional.of(existingWorker));
+
+        assertThrows(IllegalArgumentException.class, () -> workerService.updateWorker(
+                1, "Bob 2", Department.IT, "bob2", null, null, null, adminPrincipal()));
+        verify(workerRepository, never()).save(any());
+    }
+
+    @Test
+    void updateWorker_shouldThrowOptimisticLockConflict_whenVersionMismatches() {
+        Worker existingWorker = new RegularEmployee("Bob");
+        existingWorker.setDepartment(Department.IT);
+        when(workerRepository.findById(1)).thenReturn(Optional.of(existingWorker));
+
+        // existingWorker.getVersion() defaults to 0 for a freshly-constructed entity - 5 mismatches
+        assertThrows(OptimisticLockConflictException.class, () -> workerService.updateWorker(
+                1, "Bob 2", Department.IT, "bob2", null, null, 5L, adminPrincipal()));
+        verify(workerRepository, never()).save(any());
+    }
+
+    @Test
+    void updateWorker_shouldSave_whenVersionMatches() {
+        Worker existingWorker = new RegularEmployee("Bob");
+        existingWorker.setDepartment(Department.IT);
+        existingWorker.setUsername("bob");
+        when(workerRepository.findById(1)).thenReturn(Optional.of(existingWorker));
+        when(workerRepository.findByUsername("bob2")).thenReturn(Optional.empty());
+        when(adminAccountRepository.findByUsername("bob2")).thenReturn(Optional.empty());
+        when(workerRepository.save(existingWorker)).thenReturn(existingWorker);
+
+        Worker result = workerService.updateWorker(
+                1, "Bob 2", Department.IT, "bob2", null, null, 0L, adminPrincipal());
+
+        assertEquals("Bob 2", result.getName());
+        verify(workerRepository).save(existingWorker);
     }
 }

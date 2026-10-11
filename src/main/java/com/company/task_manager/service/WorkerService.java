@@ -1,6 +1,7 @@
 package com.company.task_manager.service;
 
 import com.company.task_manager.exception.ForbiddenOperationException;
+import com.company.task_manager.exception.OptimisticLockConflictException;
 import com.company.task_manager.exception.ResourceNotFoundException;
 import com.company.task_manager.model.Department;
 import com.company.task_manager.model.Manager;
@@ -47,7 +48,7 @@ public class WorkerService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Returns a page of workers; non-admins are always scoped to their own department.
+    // returns a page of workers; non-admins are always scoped to their own department
     public Page<Worker> getWorkers(int page, int size, Department department, AppUserPrincipal principal){
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
@@ -63,7 +64,7 @@ public class WorkerService {
         return workerRepository.findAll(spec, PageRequest.of(safePage, safeSize));
     }
 
-    // Loads one worker, allowing non-admins to see only their own department.
+    // loads one worker, allowing non-admins to see only their own department
     public Worker findById(int id, AppUserPrincipal principal){
         Worker worker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
@@ -73,8 +74,8 @@ public class WorkerService {
         return worker;
     }
 
-    // Creates a worker (Manager or RegularEmployee) with optional initial task assignments.
-    // Managers may only create employees in their own department; admins may create anyone.
+    // creates a worker (Manager or RegularEmployee) with optional initial task assignments
+    // managers may only create employees in their own department; admins may create anyone
     @Transactional
     public Worker createWorker(String name, Department department, String username, String password,
                                 WorkerType workerType, List<Integer> taskIds, AppUserPrincipal principal){
@@ -120,7 +121,7 @@ public class WorkerService {
         return savedWorker;
     }
 
-    // Deletes a worker if the principal is allowed to manage them.
+    // deletes a worker if the principal is allowed to manage them
     public void deleteWorker(int id, AppUserPrincipal principal){
         Worker worker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
@@ -128,17 +129,26 @@ public class WorkerService {
         workerRepository.delete(worker);
     }
 
-    // Updates a worker: a self-edit may only change name/username/password, a managing
-    // edit may also move departments and replace the full set of assigned tasks.
+    // updates a worker: a self-edit may only change name/username/password, a managing
+    // edit may also move departments and replace the full set of assigned tasks
     @Transactional
     public Worker updateWorker(int id, String name, Department department, String username, String password,
-                                List<Integer> taskIds, AppUserPrincipal principal){
+                                List<Integer> taskIds, Long expectedVersion, AppUserPrincipal principal){
         Worker existingWorker = workerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Worker not found: " + id));
 
-        // Self-service edit: an Employee or Manager editing their own record may only change
+        // optimistic-locking check: applies to both the self-edit and managing-edit paths below,
+        // so it happens before either branch
+        if (expectedVersion == null) {
+            throw new IllegalArgumentException("Version is required");
+        }
+        if (existingWorker.getVersion() != expectedVersion) {
+            throw new OptimisticLockConflictException("This worker was changed by someone else since you loaded it. Reload and try again.");
+        }
+
+        // self-service edit: an Employee or Manager editing their own record may only change
         // name/username/password. Department and taskIds are deliberately never read on this
-        // path, so a worker can never move their own department or unassign their own tasks.
+        // path, so a worker can never move their own department or unassign their own tasks
         if (isSelfEdit(existingWorker, principal)) {
             assertUsernameAvailable(username, existingWorker.getId());
             existingWorker.setName(name);
@@ -202,21 +212,21 @@ public class WorkerService {
         throw new ForbiddenOperationException("You are not allowed to manage this worker");
     }
 
-    // True when a non-admin Employee/Manager is updating their own worker record (not someone else's).
+    // True when a non-admin Employee/Manager is updating their own worker record (not someone else's)
     private boolean isSelfEdit(Worker worker, AppUserPrincipal principal) {
         return !principal.isAdmin() && principal.getWorkerId() != null && principal.getWorkerId() == worker.getId();
     }
 
-    // A task may only ever be assigned to a worker of the same department.
+    // task may only ever be assigned to a worker of the same department
     private void assertSameDepartment(Worker worker, Task task) {
         if (worker.getDepartment() != task.getDepartment()) {
             throw new IllegalArgumentException("Worker department must match the assigned task's department");
         }
     }
 
-    // Rejects a username already used by another worker or by the admin account - login resolves
+    // rejects a username already used by another worker or by the admin account - login resolves
     // admin first, then worker, so a duplicate would either fail the DB unique constraint (worker
-    // vs worker) or silently shadow the worker's login (worker vs admin).
+    // vs worker) or silently shadow the worker's login (worker vs admin)
     private void assertUsernameAvailable(String username, Integer currentWorkerId) {
         boolean takenByOtherWorker = workerRepository.findByUsername(username)
                 .map(other -> currentWorkerId == null || other.getId() != currentWorkerId)

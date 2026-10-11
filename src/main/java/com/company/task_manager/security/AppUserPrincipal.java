@@ -42,8 +42,7 @@ public class AppUserPrincipal implements UserDetails {
     // wraps a Worker, deriving the role from its Manager/RegularEmployee subtype
     public static AppUserPrincipal forWorker(Worker worker) {
         Role role = worker instanceof Manager ? Role.MANAGER : Role.EMPLOYEE;
-        return new AppUserPrincipal(worker.getUsername(), worker.getPassword(), role,
-                worker.getId(), null, worker.getDepartment(), worker.getName());
+        return new AppUserPrincipal(worker.getUsername(), worker.getPassword(), role, worker.getId(), null, worker.getDepartment(), worker.getName());
     }
 
     public Role getRole() {

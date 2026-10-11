@@ -1,9 +1,10 @@
 package com.company.task_manager.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.FutureOrPresent;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 
 @Entity
@@ -21,7 +22,6 @@ public class Task {
     @Enumerated(EnumType.STRING)
     private TaskPriority priority;
 
-    @FutureOrPresent
     private LocalDateTime dueDate;
 
     @Enumerated(EnumType.STRING)
@@ -30,8 +30,15 @@ public class Task {
     @ManyToOne
     private Worker worker;
 
+    private long version;
+
+    // comments are deleted along with the task they belong to
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL)
+    private Collection<Comment> comments;
+
     // no-arg constructor required by JPA
     public Task() {
+        this.comments = new HashSet<>();
     }
 
     // Creates a task with default TODO status and MEDIUM priority
@@ -39,6 +46,7 @@ public class Task {
         this.name = name;
         this.status = TaskStatus.TODO;
         this.priority = TaskPriority.MEDIUM;
+        this.comments = new HashSet<>();
     }
 
     // creates a task already assigned to the given worker
@@ -97,6 +105,11 @@ public class Task {
 
     public void setDepartment(Department department) {
         this.department = department;
+    }
+
+    // no setter - Hibernate owns this field, same as id
+    public long getVersion() {
+        return version;
     }
 
     @Override

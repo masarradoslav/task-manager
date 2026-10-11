@@ -12,25 +12,16 @@ import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Version;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 
-// Manager a RegularEmployee sú konkrétne podtypy (single-table dedičnosť, stĺpec worker_type
-// rozlišuje riadky) - samotná trieda Worker sa nikdy neukladá priamo, slúži len ako spoločný
-// základ a ako dočasný "len id" placeholder pri prepájaní na existujúceho workera (pozri
-// TaskController.toEntity), kým službová vrstva nenahradí referenciu skutočnou entitou.
 @Entity
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "worker_type")
-// force = true zabráni Hibernate vygenerovať CHECK (worker_type IN (...)) constraint na
-// diskriminátorovom stĺpci. Ten IN-check má v H2 in-memory DB chybu: constraint si zapamätá
-// session, ktorá ho prvýkrát vyhodnotila (connection zo schema-generation), a keď HikariCP tú
-// connection neskôr uzavrie, každé ďalšie INSERT/UPDATE na worker padne s
-// "Check constraint invalid / The database has been closed [90098]". Diskriminátor píše len
-// Hibernate (nikdy nie user), takže o žiadnu ochranu neprichádzame; force=true namiesto toho
-// pridáva podmienku na worker_type priamo do SELECT-ov.
+
 @DiscriminatorOptions(force = true)
 public class Worker {
 
@@ -51,6 +42,10 @@ public class Worker {
 
     @OneToMany(mappedBy = "worker", cascade = CascadeType.ALL)
     private Collection<Task> tasks;
+
+    // optimistic-locking guard
+    @Version
+    private long version;
 
     // no-arg constructor required by JPA
     public Worker() {
@@ -116,6 +111,11 @@ public class Worker {
     public void addTask(Task task) {
         this.tasks.add(task);
         task.setWorker(this);
+    }
+
+    // no setter - Hibernate owns this field, same as id
+    public long getVersion() {
+        return version;
     }
 
     @Override
